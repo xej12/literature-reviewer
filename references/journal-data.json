@@ -1,0 +1,10 @@
+{
+  "source": "ShowJCR（第三方整理）",
+  "url": "https://github.com/hitfyd/ShowJCR",
+  "commit": "4687a8f608f20aaf004299992f5d347dba009361",
+  "notice": "指标是数据表对应年度的期刊指标，不代表论文发表当年的指标；中科院与 JCR 分区口径不同。",
+  "files": [
+    {"kind": "cas", "year": 2025, "name": "FQBJCR2025-UTF8.csv", "sha256": "481224dca2cacc1cce49afb44c968d734c834e498e5ff054f15efb5a548789fc"},
+    {"kind": "jcr", "year": 2025, "name": "JCR2025-UTF8.csv", "sha256": "e9a0402f505264a796615bcec697f843af08dbce023ce67164c0f6f4709207c4"}
+  ]
+}

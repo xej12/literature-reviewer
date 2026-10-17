@@ -1,4 +1,4 @@
-const state = { collection: "", query: "", items: [], selected: null, model: null, listScroll: 0, detailRequest: 0, progressFilter: "all", libraryRequest: 0, libraryLoading: false, lastSync: 0 };
+const state = { collection: "", query: "", items: [], selected: null, model: null, listScroll: 0, detailRequest: 0, progressFilter: "all", libraryRequest: 0, libraryLoading: false, lastSync: 0, readingSort: "recent", readingTier: "all", divisionFilter: "all", research: null };
 const $ = (s) => document.querySelector(s);
 
 function escapeHtml(value = "") {
@@ -62,7 +62,7 @@ function renderProgress(progress, matchingCount) {
   $("#summary-progress-fill").style.width = `${percent}%`;
   $("#summary-progress").setAttribute("aria-valuenow", String(percent));
   $("#summary-progress").setAttribute("aria-valuetext", `${progress.summary} / ${progress.total} 篇已有论文解读`);
-  $("#progress-scope").textContent = `${$("#section-title").textContent}${state.query ? " · 当前搜索结果" : ""} · ${progress.total} 篇`;
+  $("#progress-scope").textContent = `${$("#section-title").textContent}${state.query ? " · 当前搜索结果" : ""}${state.divisionFilter === "all" ? "" : state.divisionFilter === "available" ? " · 有分区信息" : " · 暂无分区信息"} · ${progress.total} 篇`;
   $("#progress-description").textContent = `${progress.summary} / ${progress.total} 篇已有论文解读（${percent}%） · 点击数字卡片筛选，查看已保存结果不消耗 Token`;
   document.querySelectorAll(".progress-card").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.status === state.progressFilter)));
   $("#clear-progress-filter").setAttribute("aria-pressed", String(state.progressFilter === "all"));
@@ -77,7 +77,7 @@ function analysisBadges(item) {
 function renderItems() {
   const target = $("#items");
   if (!state.items.length) {
-    target.innerHTML = `<div class="no-results"><div>⌁</div><p>当前筛选下没有文献</p><small>可以点击“全部状态”、更换关键词或切换集合</small></div>`;
+    target.innerHTML = `<div class="no-results"><div>⌁</div><p>当前筛选下没有文献</p><small>可以切换分区分类、点击“全部状态”、更换关键词或切换集合</small></div>`;
     return;
   }
   target.innerHTML = state.items.map((item) => `
@@ -88,6 +88,8 @@ function renderItems() {
         <h3>${escapeHtml(item.title)}</h3>
         <p>${escapeHtml(authorSummary(item.creators))}</p>
         <div class="item-meta">${escapeHtml(item.publicationTitle || "")}${item.date ? ` · ${escapeHtml(item.date)}` : ""}</div>
+        ${metricBadges(item)}
+        <div class="item-priority">${priorityBadge(item)}</div>
         ${analysisBadges(item)}
       </div>
       <div class="arrow">›</div>
@@ -108,22 +110,25 @@ function renderDetail(item) {
     <h2 tabindex="-1">${escapeHtml(item.title)}</h2>
     <div id="paper-authors" class="detail-authors">${escapeHtml(authorSummary(item.creators))}</div>
     ${item.creators?.length > 3 ? `<button id="toggle-authors" class="text-button authors-toggle" aria-expanded="false" aria-controls="paper-authors">展开全部作者</button>` : ""}
+    ${openableAttachment ? `<div class="reader-actions"><button id="read-attachment" class="primary-button">${attachmentLabel}</button>${item.url ? `<button id="open-source" class="text-button">打开来源网页 ↗</button>` : ""}</div>` : item.url ? `<div class="reader-actions"><button id="open-source" class="primary-button">打开来源网页 ↗</button></div>` : ""}
+    <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${item.analysis?.summary ? "查看论文解读" : "生成论文解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
     <dl class="facts">
       ${item.publicationTitle ? `<div><dt>期刊 / 来源</dt><dd>${escapeHtml(item.publicationTitle)}</dd></div>` : ""}
       ${item.date ? `<div><dt>日期</dt><dd>${escapeHtml(item.date)}</dd></div>` : ""}
       ${item.doi ? `<div><dt>DOI</dt><dd>${escapeHtml(item.doi)}</dd></div>` : ""}
       ${item.pages ? `<div><dt>页码</dt><dd>${escapeHtml(item.pages)}</dd></div>` : ""}
     </dl>
+    ${journalDetails(item)}
+    <section id="paper-priority" class="paper-priority">${paperPriority(item)}</section>
     <div class="detail-section"><div class="section-label">摘要</div><p class="abstract">${escapeHtml(item.abstract || "这篇文献没有记录摘要。")}</p></div>
     <div class="detail-section"><div class="section-label">附件</div>
       ${item.attachments?.length ? item.attachments.map(a => `<div class="attachment"><span class="pdf-icon">${escapeHtml(attachmentTypeLabel(a))}</span><span class="attachment-name">${escapeHtml(a.filename || "附件")}</span><em>${a.exists ? "已找到" : "未找到"}</em></div>`).join("") : `<p class="muted">暂无本地附件</p>`}
       ${!pdf ? `<p class="attachment-hint">${item.attachments?.some(a => attachmentTypeLabel(a) === "PDF") ? "PDF 文件未在本机找到，请在 Zotero 中确认附件已下载。" : "此条目没有 PDF 附件。网页快照和 PDF 是不同文件，可先打开来源网页阅读；在 Zotero 添加 PDF 后刷新即可。"}</p>` : ""}
-      ${openableAttachment ? `<div class="reader-actions"><button id="read-attachment" class="primary-button">${attachmentLabel}</button>${item.url ? `<button id="open-source" class="text-button">打开来源网页 ↗</button>` : ""}</div>` : item.url ? `<div class="reader-actions"><button id="open-source" class="primary-button">打开来源网页 ↗</button></div>` : ""}
     </div>
-    <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${item.analysis?.summary ? "查看论文解读" : "生成论文解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
     ${pdf ? `<div class="next-feature"><span>✦</span><div><strong>逐页理解</strong><br><small>可框选图表单独解析，结果会保存在当前文献下。</small></div></div>` : ""}
   `;
   $("#close-detail").addEventListener("click", closeDetail);
+  wirePaperPriority(item);
   $("#toggle-authors")?.addEventListener("click", (event) => {
     const authors = $("#paper-authors");
     const expanded = authors.classList.toggle("expanded");
@@ -211,6 +216,7 @@ async function analyzeSummary(item, force = false) {
   try {
     const result = cached && !force ? { ...item.analysis, summary: cached, model: item.analysis.model, cached: true } : await postJson(`/api/items/${item.key}/summary`, { force });
     item.analysis = { ...(item.analysis || {}), ...result };
+    if (!result.cached) refreshPaperPriority(item);
     loadItems({ quiet: true });
     const labels = {
       research_question: ["研究问题", "⌁"],
@@ -502,7 +508,7 @@ async function loadItems({ quiet = false } = {}) {
   $("#refresh-library").disabled = true;
   if (!quiet) $("#sync-status").textContent = "正在读取本机 Zotero 和已保存分析…";
   try {
-    const params = new URLSearchParams({ limit: "100", status: state.progressFilter });
+    const params = new URLSearchParams({ limit: "100", status: state.progressFilter, sort: state.readingSort, tier: state.readingTier, division: state.divisionFilter });
     if (state.collection) params.set("collection", state.collection);
     if (state.query) params.set("q", state.query);
     const result = await getJson(`/api/library?${params}`);
@@ -516,6 +522,7 @@ async function loadItems({ quiet = false } = {}) {
     $("#message").classList.add("hidden");
     renderCollections(result.collections);
     renderProgress(result.progress, result.matchingCount);
+    renderReadingContext(result);
     renderItems();
     state.lastSync = Date.now();
     $("#sync-status").textContent = `${deletedCollection ? "当前集合已在 Zotero 删除，已切换全部文献。" : ""}本机更新于 ${new Date(state.lastSync).toLocaleTimeString("zh-CN", { hour12: false })} · 自动更新`;
@@ -575,4 +582,5 @@ $("#save-settings").addEventListener("click", saveSettings);
 $("#settings-modal").addEventListener("click", (event) => { if (event.target.id === "settings-modal") closeSettings(); });
 $("#close-analysis").addEventListener("click", closeAnalysis);
 $("#analysis-modal").addEventListener("click", (event) => { if (event.target.id === "analysis-modal") closeAnalysis(); });
+initReadingControls();
 boot();

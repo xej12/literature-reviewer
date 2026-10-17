@@ -23,12 +23,20 @@ read-only.
 6. Do not write to Zotero until a later implementation phase explicitly adds
    write support and the user asks for it.
 
-The current milestone supports read-only library browsing, metadata, opening
-local PDFs, and page-by-page text extraction.
+The app supports read-only library browsing, dedicated paper pages, saved
+summaries/terms/figure interpretation, and local journal metrics. For metrics,
+use `scripts/import_journals.py` to install the pinned dataset described in
+`references/journal-data.json`; preserve source, year, and all subject quartiles.
+Never substitute SJR quartiles for JCR or infer paper quality from impact factor.
+
+Research goals and cached reading priorities are available through `/api/research`
+and `POST /api/items/<KEY>/priority`. Viewing, sorting and manual edits do not call
+the model. Only an explicit evaluation action calls the configured model; cached
+results are tied to the research goal and paper inputs. Treat keywords as signals,
+and keep insufficient evidence in the unassessed group.
 
 Read [references/phase-1.md](references/phase-1.md) for the run command and
-the API contract. Read [references/phase-2.md](references/phase-2.md) before configuring model-backed summaries. Later milestones will add OCR, terminology, figure/table
-interpretation, and note export incrementally.
+the API contract. Read [references/phase-2.md](references/phase-2.md) before configuring model-backed summaries. OCR and note export remain future milestones.
 
 
 

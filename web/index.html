@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Literature Reviewer</title>
-  <link rel="stylesheet" href="/static/styles.css?v=analysis-progress-1" />
+  <link rel="stylesheet" href="/static/styles.css?v=evidence-groups-2" />
 </head>
 <body>
   <header class="topbar">
@@ -42,11 +42,33 @@
         <div id="summary-progress" class="progress-track" role="progressbar" aria-label="论文解读完成比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="summary-progress-fill"></div></div>
         <p id="progress-description" class="progress-description"></p>
       </section>
+      <section class="reading-context" aria-label="阅读目标与排序">
+        <div class="reading-context-head"><h3>我的阅读目标</h3><button id="edit-research" class="text-button">设置研究方向</button></div>
+        <p id="research-summary"></p>
+        <nav class="division-groups" aria-label="按分区信息分类">
+          <button data-division="all" aria-pressed="true">全部 <strong id="division-all">—</strong></button>
+          <button data-division="available" aria-pressed="false">有分区信息 <strong id="division-available">—</strong></button>
+          <button data-division="unavailable" aria-pressed="false">暂无分区信息 <strong id="division-unavailable">—</strong></button>
+        </nav>
+        <p class="division-description">有中科院 1–4 区或 JCR Q1–Q4 的归为“有分区信息”；其余单列。分类随 Zotero 集合和搜索更新。</p>
+        <div class="reading-filters"><label>排序<select id="reading-sort"><option value="recent">Zotero 最近修改</option><option value="priority">夯到拉 · 未评估另列</option></select></label><label>阅读等级<select id="reading-tier"><option value="all">全部等级</option><option>夯</option><option>顶级</option><option>人上人</option><option>NPC</option><option>拉</option><option>待评估</option></select></label></div>
+        <p id="journal-data-status" class="metrics-source"></p>
+      </section>
       <div id="results-info" class="results-info" role="status"></div>
       <div id="items" class="items"></div>
     </section>
   </main>
   <main id="detail" class="detail hidden" aria-label="文献详情"></main>
+  <div id="research-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="research-title">
+    <div class="modal-card research-modal-card">
+      <div class="modal-head"><h2 id="research-title">我的研究方向</h2><button id="close-research" class="close-button" aria-label="关闭研究方向设置">×</button></div>
+      <p class="modal-intro">优先级围绕你的研究目标判断。先确认方向，再评估文献；保存设置不会调用模型。</p>
+      <label class="setting-field"><span>研究目标</span><textarea id="research-goal" rows="4" maxlength="3000"></textarea></label>
+      <label class="setting-field"><span>关键词 · 每行一个主题，用 | 分隔中英文同义词</span><textarea id="research-topics" rows="7" maxlength="6000"></textarea></label>
+      <p id="research-message" class="settings-message" role="status"></p>
+      <div class="modal-actions"><button id="cancel-research" class="text-button">取消</button><button id="save-research" class="primary-button">保存研究方向</button></div>
+    </div>
+  </div>
   <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="modal-card">
       <div class="modal-head"><div><div class="eyebrow">MODEL PROVIDER</div><h2 id="settings-title">模型设置</h2></div><button id="close-settings" class="close-button">×</button></div>
@@ -64,6 +86,7 @@
       <div id="analysis-modal-body" class="analysis-modal-body"></div>
     </div>
   </div>
-  <script src="/static/app.js?v=analysis-progress-1"></script>
+  <script src="/static/reading.js?v=evidence-groups-2"></script>
+  <script src="/static/app.js?v=evidence-groups-2"></script>
 </body>
 </html>
