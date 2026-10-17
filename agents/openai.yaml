@@ -1,0 +1,4 @@
+interface:
+  display_name: "Literature Reviewer"
+  short_description: "Read and explain papers from a local Zotero library"
+  default_prompt: "Use $literature-reviewer to inspect and explain papers in my local Zotero library."

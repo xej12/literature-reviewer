@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Literature Reviewer</title>
+  <link rel="stylesheet" href="/static/styles.css?v=figure-layout-2" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="eyebrow">LOCAL RESEARCH WORKSPACE</div>
+      <h1>文献梳理工具</h1>
+    </div>
+    <div class="top-actions"><button id="settings-button" class="settings-button">模型设置</button><div id="health" class="health pending">正在连接 Zotero…</div></div>
+  </header>
+  <main class="layout">
+    <aside class="sidebar">
+      <div class="sidebar-title">我的文献库</div>
+      <button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button>
+      <div id="collections" class="collection-list"></div>
+      <div class="privacy-note"><span class="dot"></span>只读模式<br><small>数据留在本机</small></div>
+    </aside>
+    <section class="content">
+      <div class="toolbar">
+        <div>
+          <div class="eyebrow">ZOTERO LIBRARY</div>
+          <h2 id="section-title">全部文献</h2>
+        </div>
+        <label class="search"><span>⌕</span><input id="search" placeholder="搜索标题或摘要" /></label>
+      </div>
+      <div id="message" class="message hidden"></div>
+      <div id="items" class="items"></div>
+    </section>
+    <aside id="detail" class="detail empty">
+      <div class="empty-icon">✦</div>
+      <h3>选择一篇文献</h3>
+      <p>先从左侧文献库中选择条目。<br>可查看摘要、术语、论文解读和逐页图表分析。</p>
+    </aside>
+  </main>
+  <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-card">
+      <div class="modal-head"><div><div class="eyebrow">MODEL PROVIDER</div><h2 id="settings-title">模型设置</h2></div><button id="close-settings" class="close-button">×</button></div>
+      <p class="modal-intro">填写一个兼容 OpenAI Chat Completions API 的服务。配置只保存在本机。</p>
+      <label class="setting-field"><span>API 地址</span><input id="setting-base-url" placeholder="https://api.openai.com/v1" /></label>
+      <label class="setting-field"><span>模型名称</span><input id="setting-model" placeholder="gpt-4o-mini" /></label>
+      <label class="setting-field"><span>API Key <em>留空则保留已保存的 Key</em></span><input id="setting-api-key" type="password" placeholder="sk-…" /></label>
+      <div id="settings-message" class="settings-message"></div>
+      <div class="modal-actions"><button id="cancel-settings" class="text-button">取消</button><button id="save-settings" class="primary-button">保存配置</button></div>
+    </div>
+  </div>
+  <div id="analysis-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="analysis-modal-title">
+    <div class="analysis-modal-card">
+      <div class="modal-head"><div><div id="analysis-modal-eyebrow" class="eyebrow">PAPER ANALYSIS</div><h2 id="analysis-modal-title">论文解读</h2></div><button id="close-analysis" class="close-button">×</button></div>
+      <div id="analysis-modal-body" class="analysis-modal-body"></div>
+    </div>
+  </div>
+  <script src="/static/app.js?v=figure-layout-2"></script>
+</body>
+</html>
