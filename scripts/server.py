@@ -3,10 +3,13 @@ from __future__ import annotations
 import json
 import base64
 import io
+import mimetypes
+import math
 import os
 import re
 import sqlite3
 import sys
+import unicodedata
 import winreg
 import urllib.error
 import urllib.request
@@ -18,6 +21,7 @@ from urllib.parse import parse_qs, unquote, urlparse
 
 from pypdf import PdfReader
 from pdf2image import convert_from_path
+from PIL import Image
 
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
@@ -25,6 +29,72 @@ WEB_DIR = SKILL_DIR / "web"
 SETTINGS_PATH = SKILL_DIR / "data" / "settings.json"
 ANALYSIS_DIR = SKILL_DIR / "data" / "analysis"
 DEFAULT_PORT = int(os.environ.get("LITERATURE_REVIEWER_PORT", "8765"))
+
+
+def paper_doi(item: dict[str, Any]) -> str:
+    """Use a DOI field or the DOI embedded in a publisher URL."""
+    for value in (item.get("doi", ""), item.get("url", "")):
+        match = re.search(r"10\.\d{4,9}/[^\s?#<>\"]+", unquote(value), re.I)
+        if match:
+            return re.sub(r"\.(full|abstract|pdf)$", "", match[0], flags=re.I).rstrip(".,;").casefold()
+    return ""
+
+
+def paper_title(item: dict[str, Any]) -> str:
+    title = unicodedata.normalize("NFKC", item.get("title", "")).casefold()
+    normalized = "".join(c for c in title if c.isalnum())
+    # Short/generic titles are insufficient evidence of identity.
+    return normalized if len(normalized) >= 20 else ""
+
+
+def paper_groups(items: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    """Group display duplicates without changing Zotero or analysis files.
+
+    Conflicting DOIs always stay separate. An unlabelled title can join a DOI
+    group only if that title identifies exactly one DOI in this library.
+    """
+    title_dois: dict[str, set[str]] = {}
+    for item in items:
+        title, doi = paper_title(item), paper_doi(item)
+        if title and doi:
+            title_dois.setdefault(title, set()).add(doi)
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for item in items:
+        title, doi = paper_title(item), paper_doi(item)
+        candidates = title_dois.get(title, set())
+        if doi:
+            identity = ("doi", doi)
+        elif title and len(candidates) == 1:
+            identity = ("doi", next(iter(candidates)))
+        elif title and not candidates:
+            identity = ("title", title)
+        else:
+            identity = ("key", item["key"])
+        groups.setdefault(identity, []).append(item)
+    return list(groups.values())
+
+
+def preferred_paper(group: list[dict[str, Any]]) -> dict[str, Any]:
+    def score(item: dict[str, Any]) -> tuple[bool, int]:
+        local_pdf = any(a.get("exists") and (a.get("contentType") == "application/pdf" or str(a.get("filename", "")).lower().endswith(".pdf")) for a in item.get("attachments", []))
+        metadata = sum(bool(item.get(field)) for field in ("doi", "abstract", "creators", "publicationTitle", "date"))
+        return local_pdf, metadata
+    return max(group, key=score)
+
+
+def matching_papers(groups: list[list[dict[str, Any]]], query: str = "", collection: str = "") -> list[dict[str, Any]]:
+    result = []
+    for group in groups:
+        if collection and not any(c["key"] == collection for item in group for c in item.get("collections", [])):
+            continue
+        if query and not any(query.casefold() in (item.get("title", "") + "\n" + item.get("abstract", "")).casefold() for item in group):
+            continue
+        result.append(preferred_paper(group))
+    return result
+
+
+def visible_papers(groups: list[list[dict[str, Any]]], query: str = "", collection: str = "", limit: int = 50) -> list[dict[str, Any]]:
+    return matching_papers(groups, query, collection)[:max(1, min(limit, 200))]
 
 
 def discover_zotero_dir() -> Path | None:
@@ -129,7 +199,9 @@ class ZoteroStore:
             """
             SELECT c.key, c.collectionName
             FROM collectionItems ci JOIN collections c ON c.collectionID = ci.collectionID
-            WHERE ci.itemID = ? ORDER BY c.collectionName
+            WHERE ci.itemID = ?
+              AND NOT EXISTS (SELECT 1 FROM deletedCollections d WHERE d.collectionID=c.collectionID)
+            ORDER BY c.collectionName
             """,
             (item_id,),
         ).fetchall()
@@ -183,54 +255,69 @@ class ZoteroStore:
         return item
 
     def health(self) -> dict[str, Any]:
-        with self.connect() as conn:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM items WHERE itemTypeID NOT IN (1, 3, 14, 15, 28)"
-            ).fetchone()[0]
+        groups = paper_groups(self._all_items())
         return {
             "ok": True,
             "zoteroVersion": self.version,
             "dataDir": str(self.data_dir),
-            "itemCount": int(count),
+            "itemCount": len(groups),
+            "rawItemCount": sum(len(group) for group in groups),
             "readOnly": True,
         }
 
     def collections(self) -> list[dict[str, Any]]:
+        return self._visible_collections(paper_groups(self._all_items()))
+
+    def _visible_collections(self, groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
         with self.connect() as conn:
             rows = conn.execute(
-                """
-                SELECT c.key, c.collectionName, COUNT(i.itemID) AS itemCount
-                FROM collections c
-                LEFT JOIN collectionItems ci ON ci.collectionID = c.collectionID
-                LEFT JOIN items i ON i.itemID = ci.itemID AND i.itemTypeID NOT IN (1, 3, 14, 15, 28)
-                GROUP BY c.collectionID ORDER BY c.collectionName COLLATE NOCASE
-                """
+                """SELECT key, collectionName FROM collections c
+                   WHERE NOT EXISTS (SELECT 1 FROM deletedCollections d WHERE d.collectionID=c.collectionID)
+                   ORDER BY collectionName COLLATE NOCASE"""
             ).fetchall()
-        return [{"key": str(r[0]), "name": str(r[1]), "itemCount": int(r[2])} for r in rows]
+        return [{"key": str(r[0]), "name": str(r[1]), "itemCount": sum(any(c["key"] == r[0] for item in group for c in item.get("collections", [])) for group in groups)} for r in rows]
+
+    def library(self, query: str = "", collection: str = "", status: str = "all", limit: int = 100) -> dict[str, Any]:
+        if status not in {"all", "summary", "unread", "terms", "figures"}:
+            raise ValueError("无效的分析状态")
+        groups = paper_groups(self._all_items())
+        collections = self._visible_collections(groups)
+        # A collection deleted in Zotero must not leave a blank/stale view.
+        if collection and collection not in {c["key"] for c in collections}:
+            collection = ""
+        items = [{**item, "analysisStatus": analysis_status(item["key"])} for item in matching_papers(groups, query, collection)]
+        progress = {"total": len(items), "summary": 0, "unread": 0, "terms": 0, "figures": 0}
+        for item in items:
+            flags = item["analysisStatus"]
+            for kind in ("summary", "terms", "figures"):
+                progress[kind] += int(bool(flags[kind]))
+            progress["unread"] += int(not flags["summary"])
+        filtered = [item for item in items if status == "all" or (not item["analysisStatus"]["summary"] if status == "unread" else item["analysisStatus"][status])]
+        return {
+            "items": filtered[:max(1, min(limit, 200))],
+            "matchingCount": len(filtered),
+            "progress": progress,
+            "collections": collections,
+            "collection": collection,
+            "itemCount": len(groups),
+            "zoteroVersion": self.version,
+        }
 
     def items(self, query: str = "", collection: str = "", limit: int = 50) -> list[dict[str, Any]]:
-        limit = max(1, min(limit, 200))
-        where = ["i.itemTypeID NOT IN (1, 3, 14, 15, 28)"]
-        params: list[Any] = []
-        if query:
-            where.append(
-                "EXISTS (SELECT 1 FROM itemData d JOIN fields f ON f.fieldID=d.fieldID JOIN itemDataValues v ON v.valueID=d.valueID WHERE d.itemID=i.itemID AND f.fieldName IN ('title','abstractNote') AND v.value LIKE ? COLLATE NOCASE)"
-            )
-            params.append(f"%{query}%")
-        if collection:
-            where.append(
-                "EXISTS (SELECT 1 FROM collectionItems ci JOIN collections c ON c.collectionID=ci.collectionID WHERE ci.itemID=i.itemID AND c.key=?)"
-            )
-            params.append(collection)
-        sql = f"""
+        return visible_papers(paper_groups(self._all_items()), query, collection, limit)
+
+    def _all_items(self) -> list[dict[str, Any]]:
+        # Deduplicate before filtering/limiting so an HTML-only entry in a
+        # collection still resolves to the PDF entry from another collection.
+        sql = """
             SELECT i.itemID, i.key, it.typeName
             FROM items i JOIN itemTypes it ON it.itemTypeID=i.itemTypeID
-            WHERE {' AND '.join(where)}
-            ORDER BY i.dateModified DESC LIMIT ?
+            WHERE i.itemTypeID NOT IN (1, 3, 14, 15, 28)
+              AND NOT EXISTS (SELECT 1 FROM deletedItems d WHERE d.itemID=i.itemID)
+            ORDER BY i.dateModified DESC, i.key
         """
-        params.append(limit)
         with self.connect() as conn:
-            rows = conn.execute(sql, params).fetchall()
+            rows = conn.execute(sql).fetchall()
             return [self._item(conn, row) for row in rows]
 
     def item(self, key: str) -> dict[str, Any] | None:
@@ -253,6 +340,11 @@ class ZoteroStore:
         filename = raw_path.split(":", 1)[1] if raw_path.startswith("storage:") else raw_path
         if not filename:
             return None
+        # Zotero linked-file attachments store an absolute path outside
+        # storage. Only use the path read from Zotero's own database.
+        if not raw_path.startswith("storage:") and Path(raw_path).is_absolute():
+            path = Path(raw_path).resolve()
+            return path if path.is_file() else None
         path = (self.data_dir / "storage" / attachment_key / filename).resolve()
         storage_root = (self.data_dir / "storage").resolve()
         return path if storage_root in path.parents and path.exists() else None
@@ -363,12 +455,26 @@ def analysis_path(item_key: str) -> Path:
 def load_analysis(item_key: str) -> dict[str, Any]:
     try:
         result = json.loads(analysis_path(item_key).read_text(encoding="utf-8"))
+        if not isinstance(result, dict):
+            raise ValueError("无效的分析缓存")
         # Older cache files predate figure analysis. Keep them readable while
         # giving the client a stable shape for the new feature.
         result.setdefault("figures", {})
         return result
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return {"itemKey": item_key, "summary": None, "terms": None, "figures": {}, "updatedAt": None, "model": None}
+
+
+def analysis_status(item_key: str) -> dict[str, Any]:
+    saved = load_analysis(item_key)
+    figures = saved.get("figures") or {}
+    figure_count = sum(bool(value) for value in figures.values()) if isinstance(figures, dict) else 0
+    return {
+        "summary": bool(saved.get("summary")),
+        "terms": bool(saved.get("terms")),
+        "figures": figure_count > 0,
+        "figureCount": figure_count,
+    }
 
 
 def save_analysis(item_key: str, kind: str, result: dict[str, Any]) -> dict[str, Any]:
@@ -500,7 +606,38 @@ def generate_terms(key: str) -> dict[str, Any]:
     return {"itemKey": item["key"], "title": item["title"], "terms": normalized, "model": config["model"]}
 
 
-def generate_figure(key: str, attachment_key: str, page: int) -> dict[str, Any]:
+def figure_region(value: Any) -> list[int] | None:
+    if value is None:
+        return None
+    if (not isinstance(value, list) or len(value) != 4
+            or any(type(v) is not int for v in value)):
+        raise ValueError("图表选区无效，请重新框选")
+    x, y, width, height = value
+    if min(x, y) < 0 or min(width, height) < 10 or x + width > 1000 or y + height > 1000:
+        raise ValueError("图表选区超出页面或过小，请重新框选")
+    return value
+
+
+def figure_cache_key(attachment_key: str, page: int, region: list[int] | None) -> str:
+    key = f"{attachment_key}:{page}"
+    return key + ":crop:" + ",".join(map(str, region)) if region else key
+
+
+def crop_figure_image(image: bytes, region: list[int] | None) -> bytes:
+    if region is None:
+        return image
+    x, y, width, height = region
+    with Image.open(io.BytesIO(image)) as source:
+        left = math.floor(source.width * x / 1000)
+        top = math.floor(source.height * y / 1000)
+        right = math.ceil(source.width * (x + width) / 1000)
+        bottom = math.ceil(source.height * (y + height) / 1000)
+        stream = io.BytesIO()
+        source.crop((left, top, right, bottom)).save(stream, format="PNG")
+        return stream.getvalue()
+
+
+def generate_figure(key: str, attachment_key: str, page: int, region: list[int] | None = None) -> dict[str, Any]:
     """Ask a vision-capable OpenAI-compatible model to interpret one PDF page."""
     config = model_config()
     if not config["configured"]:
@@ -510,8 +647,9 @@ def generate_figure(key: str, attachment_key: str, page: int) -> dict[str, Any]:
         raise FileNotFoundError("条目不存在")
     page_info = STORE.pdf_page(attachment_key, page)  # type: ignore[union-attr]
     image = STORE.pdf_page_image(attachment_key, page_info["page"])  # type: ignore[union-attr]
-    image_data = base64.b64encode(image).decode("ascii")
+    image_data = base64.b64encode(crop_figure_image(image, region)).decode("ascii")
     prompt = (
+        ("图片是用户从 PDF 中框选的局部，请只解析该选区；不要推测选区外内容。\n" if region else "") +
         "你是科研文献助理。请查看这张论文 PDF 页面截图，重点识别其中的图、表、坐标轴、图例和注释。"
         "如果页面没有清晰的图表，请明确说明。只根据图片中可见内容，输出严格 JSON，不要 Markdown。\n"
         "JSON 必须包含四个字符串字段：description（图表展示了什么）、trends（主要趋势或组间差异）、"
@@ -555,6 +693,8 @@ def generate_figure(key: str, attachment_key: str, page: int) -> dict[str, Any]:
         result = json.loads(content)
     except json.JSONDecodeError as exc:
         raise RuntimeError("模型返回的内容不是有效 JSON，请更换支持视觉输入的模型或重试。") from exc
+    if not isinstance(result, dict):
+        raise RuntimeError("模型返回的图表结果格式有误，请重试。")
     figure = {
         "description": str(result.get("description", "图中无法确认")),
         "trends": str(result.get("trends", "图中无法确认")),
@@ -563,6 +703,8 @@ def generate_figure(key: str, attachment_key: str, page: int) -> dict[str, Any]:
         "attachmentKey": attachment_key,
         "page": page_info["page"],
         "pageCount": page_info["pageCount"],
+        "region": region,
+        "model": config["model"],
     }
     return {"itemKey": item["key"], "title": item["title"], "figure": figure, "model": config["model"]}
 
@@ -617,6 +759,16 @@ class Handler(BaseHTTPRequestHandler):
                 limit = int(params.get("limit", ["50"])[0])
                 self.send_json(STORE.items(q, collection, limit))
                 return
+            if path == "/api/library":
+                if STORE is None:
+                    raise RuntimeError(STARTUP_ERROR)
+                self.send_json(STORE.library(
+                    params.get("q", [""])[0].strip(),
+                    params.get("collection", [""])[0].strip(),
+                    params.get("status", ["all"])[0],
+                    int(params.get("limit", ["100"])[0]),
+                ))
+                return
             match = re.fullmatch(r"/api/items/([A-Z0-9]+)/analysis", path)
             if match:
                 self.send_json(load_analysis(match.group(1)))
@@ -661,8 +813,13 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_error(HTTPStatus.NOT_FOUND)
                     return
                 body = attachment.read_bytes()
+                content_type = mimetypes.guess_type(attachment.name)[0] or "application/octet-stream"
                 self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Type", content_type)
+                if content_type == "text/html":
+                    # Zotero snapshots are external documents. Isolate their
+                    # scripts from the local model/settings API.
+                    self.send_header("Content-Security-Policy", "sandbox; default-src 'none'; img-src data: https:; style-src 'unsafe-inline' https:")
                 self.send_header("Content-Length", str(len(body)))
                 self.send_header("Content-Disposition", "inline")
                 self.end_headers()
@@ -707,21 +864,25 @@ class Handler(BaseHTTPRequestHandler):
             cached = load_analysis(match.group(1))
             if kind == "figure":
                 attachment_key = str(payload.get("attachmentKey", "")).strip()
+                region = figure_region(payload.get("region"))
                 page = int(payload.get("page", 1))
                 if not re.fullmatch(r"[A-Z0-9]+", attachment_key):
                     raise ValueError("请先选择一个 PDF 附件")
                 if page < 1:
                     raise ValueError("页码必须是正整数")
+                item = STORE.item(match.group(1))
+                if not item or not any(a["key"] == attachment_key for a in item["attachments"]):
+                    raise ValueError("该附件不属于当前文献")
                 # Clamp once before constructing the cache key so an out of
                 # range request cannot create a duplicate entry for the same
                 # physical PDF page.
                 page = STORE.pdf_page(attachment_key, page)["page"]  # type: ignore[union-attr]
-                figure_key = f"{attachment_key}:{page}"
+                figure_key = figure_cache_key(attachment_key, page, region)
                 cached_figure = cached.get("figures", {}).get(figure_key)
                 if cached_figure and not payload.get("force"):
                     self.send_json({**cached, "figure": cached_figure, "figureKey": figure_key, "cached": True})
                     return
-                result = generate_figure(match.group(1), attachment_key, page)
+                result = generate_figure(match.group(1), attachment_key, page, region)
                 saved = save_figure(match.group(1), figure_key, result)
                 self.send_json({**saved, "figure": saved["figures"][figure_key], "figureKey": figure_key, "cached": False})
                 return

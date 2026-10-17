@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Literature Reviewer</title>
-  <link rel="stylesheet" href="/static/styles.css?v=figure-layout-2" />
+  <link rel="stylesheet" href="/static/styles.css?v=analysis-progress-1" />
 </head>
 <body>
   <header class="topbar">
@@ -14,7 +14,7 @@
     </div>
     <div class="top-actions"><button id="settings-button" class="settings-button">模型设置</button><div id="health" class="health pending">正在连接 Zotero…</div></div>
   </header>
-  <main class="layout">
+  <main id="library" class="layout">
     <aside class="sidebar">
       <div class="sidebar-title">我的文献库</div>
       <button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button>
@@ -30,14 +30,23 @@
         <label class="search"><span>⌕</span><input id="search" placeholder="搜索标题或摘要" /></label>
       </div>
       <div id="message" class="message hidden"></div>
+      <div class="library-sync"><button id="refresh-library" class="secondary-button">刷新文献库</button><span id="sync-status" role="status">正在读取本机 Zotero…</span></div>
+      <section id="progress-overview" class="progress-overview hidden" aria-label="分析进度总览">
+        <div class="progress-heading"><div><h3>分析进度</h3><p id="progress-scope"></p></div><button id="clear-progress-filter" class="text-button" aria-pressed="true">全部状态</button></div>
+        <div class="progress-cards">
+          <button class="progress-card" data-status="summary" aria-pressed="false"><span>已解读</span><strong id="progress-summary">0</strong><small>篇 · 已保存论文解读</small></button>
+          <button class="progress-card" data-status="unread" aria-pressed="false"><span>未解读</span><strong id="progress-unread">0</strong><small>篇 · 尚无论文解读</small></button>
+          <button class="progress-card" data-status="terms" aria-pressed="false"><span>已提取术语</span><strong id="progress-terms">0</strong><small>篇 · 已保存术语解释</small></button>
+          <button class="progress-card" data-status="figures" aria-pressed="false"><span>已解析图表</span><strong id="progress-figures">0</strong><small>篇 · 至少一项解析</small></button>
+        </div>
+        <div id="summary-progress" class="progress-track" role="progressbar" aria-label="论文解读完成比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="summary-progress-fill"></div></div>
+        <p id="progress-description" class="progress-description"></p>
+      </section>
+      <div id="results-info" class="results-info" role="status"></div>
       <div id="items" class="items"></div>
     </section>
-    <aside id="detail" class="detail empty">
-      <div class="empty-icon">✦</div>
-      <h3>选择一篇文献</h3>
-      <p>先从左侧文献库中选择条目。<br>可查看摘要、术语、论文解读和逐页图表分析。</p>
-    </aside>
   </main>
+  <main id="detail" class="detail hidden" aria-label="文献详情"></main>
   <div id="settings-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="modal-card">
       <div class="modal-head"><div><div class="eyebrow">MODEL PROVIDER</div><h2 id="settings-title">模型设置</h2></div><button id="close-settings" class="close-button">×</button></div>
@@ -55,6 +64,6 @@
       <div id="analysis-modal-body" class="analysis-modal-body"></div>
     </div>
   </div>
-  <script src="/static/app.js?v=figure-layout-2"></script>
+  <script src="/static/app.js?v=analysis-progress-1"></script>
 </body>
 </html>
