@@ -40,6 +40,10 @@
 5. **打开网页。** 浏览器访问 <http://127.0.0.1:8765>。启动窗口需要保持打开；以后双击项目根目录的 `start.cmd` 即可启动。
 6. **先验证文献，再配置模型。** 能看见文献并打开 PDF 后，点击右上角“模型设置”，填写自己的 API 地址、模型名称和 Key。图表解析还需要 [安装 Poppler](docs/installation.md#安装-poppler图表功能需要) 和支持图片输入的模型。
 
+没有 Zotero 或只想先试用界面时，可以运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Demo`。示例模式提供一篇内置题录和短示例 PDF，不读取本机文件、不连接模型；体验结束后按正常命令启动即可切回自己的 Zotero。
+
+也可以双击 `setup.cmd`，它会创建项目自己的 `.venv` 并安装依赖；安装依赖需要网络，只在你明确运行 setup 时发生。
+
 如果 `python` 命令找不到、Zotero 目录没有被识别，或不知道 API 地址怎么填，请跟着 [完整安装指南](docs/installation.md) 操作。上面命令无需激活虚拟环境，也无需管理员权限。
 
 ## 费用、隐私和能力边界

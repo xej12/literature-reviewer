@@ -32,6 +32,8 @@ cd literature-reviewer
 
 两种下载方式任选一种。ZIP 用户不需要另外安装 Git。
 
+如果希望让脚本自动完成虚拟环境和依赖安装，可在项目根目录双击 `setup.cmd`，或运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Install`。这一步会下载 Python 依赖，完成后直接启动网站；普通 `start.cmd` 不会自动联网安装。
+
 ## 3. 安装 Python 与依赖
 
 从 [Python Windows 下载页](https://www.python.org/downloads/windows/) 安装 Python 3.11+。安装时勾选 **Add python.exe to PATH**。安装后关闭旧终端，重新打开 PowerShell。
@@ -68,6 +70,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
 
 保留启动窗口。停止时在该窗口按 **Ctrl+C**；下次直接双击项目根目录的 `start.cmd`。启动器优先选项目 `.venv`，其次系统 Python，再兼容已有的 Codex 内置 Python。
 
+### 先试用示例模式（可选）
+
+如果暂时没有 Zotero，或想先检查网页界面，可以运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Demo
+```
+
+示例模式包含一篇随项目分发的短示例 PDF，明确标记为“示例模式”，不会读取 Zotero、不会读取个人文件，也不会发送模型请求。可以用它体验 PDF 打开、页码导航和笔记；点击生成解读时会被明确拦截。关闭窗口后，按上面的普通启动命令运行即可回到自己的文献库。
+
 虚拟环境缺依赖时，启动器会提示使用选中的 Python 安装依赖；不要在另一个 Python 环境中重复安装。
 
 ## 5. 找不到 Zotero 时，指定数据目录
@@ -96,7 +108,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
 | API Key | 从该服务商的 API 控制台创建的密钥；不要发到 Issue 或截图中 |
 | 输出预算、思考模式 | 第一次先保留默认；并非每个兼容服务都支持相同参数 |
 
-先点击**保存配置**。仅浏览和保存配置不会生成解读；**测试连接**会发起一次真实模型请求，可能收费。测试成功也只验证基本文字调用，不保证模型支持图片或长文结构化输出。
+模型设置中的“快速选择服务商”可以自动填写 OpenAI、DeepSeek、Ollama 或 LM Studio 的常见地址和示例模型。它只是填表快捷方式，最终仍应以服务商文档提供的地址和模型 ID 为准；其他服务选择“自定义 OpenAI 兼容服务”。本地 Ollama/LM Studio 通常不需要 API Key，但必须先在本机启动对应服务。
+
+先点击**测试连接**检查服务的 `/models` 接口。此检查不会发送论文内容，也不会调用生成模型；部分兼容服务不提供该接口，会提示“地址可达但无法确认模型”。确认后再点击**保存配置**。保存后的 API Key 使用 Windows 当前账户的 DPAPI 加密，不再明文写入 `data/settings.json`；旧版本留下的明文 Key 会在下一次保存时迁移。仅浏览和保存配置不会生成解读。
 
 图表功能要使用支持图片输入的模型。只有文字能力的服务仍可用于文字功能；以后切换配置时，已存讲解不会因此自动付费重生成。
 

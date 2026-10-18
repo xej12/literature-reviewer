@@ -1,4 +1,4 @@
-const state = { collection: "", query: "", items: [], selected: null, model: null, listScroll: 0, detailRequest: 0, progressFilter: "all", libraryRequest: 0, libraryLoading: false, lastSync: 0, readingSort: "recent", readingTier: "all", divisionFilter: "all", research: null };
+const state = { collection: "", query: "", items: [], selected: null, model: null, demo: false, listScroll: 0, detailRequest: 0, progressFilter: "all", libraryRequest: 0, libraryLoading: false, lastSync: 0, readingSort: "recent", readingTier: "all", divisionFilter: "all", research: null };
 const $ = (s) => document.querySelector(s);
 
 function escapeHtml(value = "") {
@@ -82,6 +82,17 @@ function renderCollections(collections) {
   });
 }
 
+function showWelcomeIfNeeded(health) {
+  try { if (localStorage.getItem("literature-reviewer:welcome-seen") === "1") return; } catch {}
+  $("#welcome-demo-note").classList.toggle("hidden", !health?.demo);
+  $("#welcome-modal").classList.remove("hidden");
+}
+
+function dismissWelcome() {
+  try { localStorage.setItem("literature-reviewer:welcome-seen", "1"); } catch {}
+  $("#welcome-modal").classList.add("hidden");
+}
+
 const progressLabels = { all: "全部状态", summary: "已解读", unread: "未解读", terms: "已提取术语", figures: "已解析图表" };
 
 function renderProgress(progress, matchingCount) {
@@ -140,7 +151,7 @@ function renderDetail(item) {
     <div id="paper-authors" class="detail-authors">${escapeHtml(authorSummary(item.creators))}</div>
     ${item.creators?.length > 3 ? `<button id="toggle-authors" class="text-button authors-toggle" aria-expanded="false" aria-controls="paper-authors">展开全部作者</button>` : ""}
     ${openableAttachment ? `<div class="reader-actions"><button id="read-attachment" class="primary-button">${attachmentLabel}</button>${item.url ? `<button id="open-source" class="text-button">打开来源网页 ↗</button>` : ""}</div>` : item.url ? `<div class="reader-actions"><button id="open-source" class="primary-button">打开来源网页 ↗</button></div>` : ""}
-    <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${(item.analysis?.summary || item.analysis?.deepReadingAvailable) ? "查看论文解读" : "论文深度解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
+    <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${(item.analysis?.summary || item.analysis?.deepReadingAvailable) ? "查看论文解读" : "论文深度解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.demo ? "示例模式：不会调用模型" : state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
     <div class="translation-tools">${pdf ? `<button id="selection-reader-button" class="secondary-button">划词阅读 PDF</button>` : ""}<button id="term-reading-button" class="secondary-button">术语精讲</button><button id="terminology-button" class="text-button">专业术语表</button><span>选中文字后点「翻译」；术语表命中免费，其他译文按文献保存。</span></div>
     <div class="paper-notes-entry"><div><strong>我的阅读笔记</strong><p>把自己的理解、原文位置和待核实的问题记在这篇文献下。</p></div><button id="paper-write-note" class="secondary-button">写笔记 / 查看笔记</button></div>
     <div class="paper-notes-entry"><div><strong>继续探索这项研究</strong><p>找相似研究、前置文献和后续工作，结果保存在这篇文献下。不调用模型。</p></div><button id="paper-discover" class="secondary-button">查找相关文献 →</button></div>
@@ -202,10 +213,33 @@ function openSettings() {
     $("#setting-api-key").value = "";
     $("#setting-output-tokens").value = config.generation?.maxOutputTokens ?? "";
     $("#setting-thinking-mode").value = config.generation?.thinkingMode || "auto";
+    $("#setting-provider").value = providerFor(config.baseUrl, config.model);
     refreshGenerationSettingsHint();
     $("#settings-message").textContent = config.configured ? "当前已有可用配置。重新填写 API Key 可覆盖。" : "尚未配置模型。";
     $("#settings-modal").classList.remove("hidden");
   }).catch(showError);
+}
+
+const providerPresets = {
+  openai: {baseUrl: "https://api.openai.com/v1", model: "gpt-4o-mini"},
+  deepseek: {baseUrl: "https://api.deepseek.com/v1", model: "deepseek-chat"},
+  ollama: {baseUrl: "http://127.0.0.1:11434/v1", model: "llama3.2"},
+  lmstudio: {baseUrl: "http://127.0.0.1:1234/v1", model: "local-model"},
+};
+function providerFor(baseUrl = "") {
+  const value = String(baseUrl).toLowerCase();
+  if (value.includes("api.openai.com")) return "openai";
+  if (value.includes("api.deepseek.com")) return "deepseek";
+  if (value.includes(":11434")) return "ollama";
+  if (value.includes(":1234")) return "lmstudio";
+  return "custom";
+}
+function applyProviderPreset() {
+  const preset = providerPresets[$("#setting-provider").value];
+  if (!preset) return;
+  $("#setting-base-url").value = preset.baseUrl;
+  $("#setting-model").value = preset.model;
+  refreshGenerationSettingsHint();
 }
 
 function refreshGenerationSettingsHint() {
@@ -264,6 +298,22 @@ async function saveSettings() {
   } finally {
     button.disabled = false;
   }
+}
+
+async function testModelConnection() {
+  const button = $("#test-model"), message = $("#settings-message");
+  button.disabled = true;
+  message.textContent = "正在检查服务的 /models 接口，不发送论文内容，也不会调用模型…";
+  try {
+    const result = await postJson("/api/model/test", {
+      baseUrl: $("#setting-base-url").value,
+      model: $("#setting-model").value,
+      apiKey: $("#setting-api-key").value,
+    });
+    message.textContent = result.message;
+  } catch (error) {
+    message.textContent = error.message || String(error);
+  } finally { button.disabled = false; }
 }
 
 async function analyzeSummary(item, force = false) {
@@ -616,14 +666,16 @@ async function loadItems({ quiet = false } = {}) {
     const deletedCollection = Boolean(state.collection && !result.collection);
     state.collection = result.collection;
     state.allCount = result.itemCount;
+    state.demo = Boolean(result.demo);
     state.items = result.items;
-    $("#health").textContent = `Zotero ${result.zoteroVersion || "已连接"} · ${result.itemCount} 篇`;
+    $("#health").textContent = result.demo ? "示例模式 · 1 篇" : `Zotero ${result.zoteroVersion || "已连接"} · ${result.itemCount} 篇`;
     $("#health").className = "health ok";
     $("#message").classList.add("hidden");
     renderCollections(result.collections);
     renderProgress(result.progress, result.matchingCount);
     renderReadingContext(result);
     renderItems();
+    showWelcomeIfNeeded(result);
     state.lastSync = Date.now();
     $("#sync-status").textContent = `${deletedCollection ? "当前集合已在 Zotero 删除，已切换全部文献。" : ""}本电脑更新于 ${new Date(state.lastSync).toLocaleTimeString("zh-CN", { hour12: false })} · 自动更新`;
   } catch (error) {
@@ -677,11 +729,17 @@ window.addEventListener("focus", refreshIfVisible);
 document.addEventListener("visibilitychange", refreshIfVisible);
 setInterval(refreshIfVisible, 30000);
 $("#settings-button").addEventListener("click", openSettings);
+$("#close-welcome").addEventListener("click", dismissWelcome);
+$("#dismiss-welcome").addEventListener("click", dismissWelcome);
+$("#welcome-settings").addEventListener("click", () => { dismissWelcome(); openSettings(); });
 $("#close-settings").addEventListener("click", closeSettings);
 $("#cancel-settings").addEventListener("click", closeSettings);
 $("#save-settings").addEventListener("click", saveSettings);
+$("#test-model").addEventListener("click", testModelConnection);
 for (const id of ["setting-base-url", "setting-model", "setting-output-tokens", "setting-thinking-mode"]) $("#" + id).addEventListener("input", refreshGenerationSettingsHint);
+$("#setting-provider").addEventListener("change", applyProviderPreset);
 $("#settings-modal").addEventListener("click", (event) => { if (event.target.id === "settings-modal") closeSettings(); });
+$("#welcome-modal").addEventListener("click", (event) => { if (event.target.id === "welcome-modal") dismissWelcome(); });
 $("#close-analysis").addEventListener("click", closeAnalysis);
 $("#analysis-modal").addEventListener("click", (event) => { if (event.target.id === "analysis-modal") closeAnalysis(); });
 initReadingControls();

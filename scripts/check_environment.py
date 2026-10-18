@@ -32,6 +32,10 @@ def main() -> int:
             print(f"[OK] Poppler command: {executable}")
         else:
             print(f"[WARN] {executable} is not on PATH; figure previews/analysis need Poppler.")
+    if os.environ.get("LITERATURE_REVIEWER_DEMO") == "1":
+        print("[OK] Demo mode: Zotero is not required; no model requests will be made")
+        print("Checks complete. See docs/installation.md and docs/usage.md.")
+        return 1 if failures else 0
     configured = os.environ.get("ZOTERO_DATA_DIR")
     candidates = [Path(configured).expanduser()] if configured else []
     candidates.extend([Path.home() / "Zotero", Path(os.environ.get("APPDATA", "")) / "Zotero/Zotero/Profiles"])

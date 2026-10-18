@@ -16,6 +16,7 @@ import uuid
 import winreg
 import urllib.error
 import urllib.request
+import zipfile
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,6 +41,8 @@ import notes
 import discovery
 import discovery_joint
 import discovery_export
+import zotero_snapshot
+import secret_store
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 WEB_DIR = SKILL_DIR / "web"
@@ -172,23 +175,10 @@ class ZoteroStore:
         self._pdf_cache: dict[str, dict[str, Any]] = {}
         self._image_cache: dict[str, bytes] = {}
 
-    def connect(self) -> sqlite3.Connection:
-        # Prefer the normal read-only view so SQLite can include Zotero's live
-        # WAL. Fall back to immutable mode if a transient lock prevents it.
-        for suffix in ("?mode=ro", "?mode=ro&immutable=1"):
-            try:
-                uri = f"file:{self.db_path.as_posix()}{suffix}"
-                conn = sqlite3.connect(uri, uri=True, timeout=0.5)
-                conn.row_factory = sqlite3.Row
-                conn.execute("PRAGMA query_only=ON")
-                conn.execute("SELECT 1")
-                return conn
-            except sqlite3.Error:
-                try:
-                    conn.close()
-                except UnboundLocalError:
-                    pass
-        raise RuntimeError("无法以只读方式打开 Zotero 数据库")
+    def connect(self):
+        # Zotero normally holds an exclusive lock even after startup. SQLite
+        # only opens our verified temporary copy, never the live database.
+        return zotero_snapshot.connect_snapshot(self.db_path)
 
     def _field_map(self, conn: sqlite3.Connection, item_id: int) -> dict[str, str]:
         rows = conn.execute(
@@ -344,6 +334,7 @@ class ZoteroStore:
             "journalData": journal_metrics.catalog().status(),
             "division": division,
             "divisionCounts": division_counts,
+            "demo": bool(getattr(self, "demo", False)),
         }
 
     def items(self, query: str = "", collection: str = "", limit: int = 50) -> list[dict[str, Any]]:
@@ -473,6 +464,55 @@ class ZoteroStore:
         return item, deep_reading.build_corpus(item, pdf["key"], pages, self._pdf_cache[pdf["key"]].get("sourceHash"))
 
 
+class DemoStore(ZoteroStore):
+    """A metadata-only library for trying the interface without Zotero.
+
+    Demo mode never calls a model and never touches a Zotero directory. It is
+    deliberately unable to open a PDF so users cannot mistake sample metadata
+    for their own library.
+    """
+    def __init__(self) -> None:
+        self.version = "示例模式"
+        self.demo = True
+        self.data_dir = None
+        self.db_path = None
+        self._pdf_cache = {}
+        self._image_cache = {}
+        self._demo_items = [{
+            "key": "DEMO01", "itemType": "journalArticle",
+            "title": "示例论文：从研究问题到可核实证据",
+            "abstract": "这是一个不连接 Zotero 的示例条目，用来体验文献列表、论文详情、笔记模板和相关文献入口。连接自己的文献库后，示例内容不会混入真实库。",
+            "date": "2025", "doi": "10.0000/literature-reviewer.demo",
+            "publicationTitle": "Literature Reviewer Demo", "issn": "", "conferenceName": "",
+            "url": "https://github.com/xej12/literature-reviewer",
+            "language": "zh-CN", "pages": "1–8",
+            "creators": ["示例作者"], "collections": [{"key": "DEMO", "name": "示例文献"}],
+            "attachments": [{"key": "DEMOPDF", "contentType": "application/pdf", "filename": "demo-paper.pdf", "exists": True, "size": None}],
+        }]
+
+    def _all_items(self) -> list[dict[str, Any]]:
+        return [dict(item) for item in self._demo_items]
+
+    def item(self, key: str) -> dict[str, Any] | None:
+        return next((dict(item) for item in self._demo_items if item["key"] == key), None)
+
+    def collections(self) -> list[dict[str, Any]]:
+        return [{"key": "DEMO", "name": "示例文献", "itemCount": 1}]
+
+    def _visible_collections(self, groups: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+        return self.collections()
+
+    def health(self) -> dict[str, Any]:
+        return {"ok": True, "demo": True, "zoteroVersion": self.version,
+                "dataDir": None, "itemCount": 1, "rawItemCount": 1, "readOnly": True}
+
+    def attachment_path(self, attachment_key: str) -> Path | None:
+        if attachment_key == "DEMOPDF":
+            path = SKILL_DIR / "references" / "demo-paper.pdf"
+            return path if path.is_file() else None
+        raise FileNotFoundError("示例模式没有这份 PDF；连接 Zotero 后才能打开自己的原文。")
+
+
 def saved_model_config() -> dict[str, Any]:
     try:
         data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
@@ -480,7 +520,13 @@ def saved_model_config() -> dict[str, Any]:
             options = generation.settings(data)
         except ValueError:
             options = generation.settings({})
-        return {"baseUrl": str(data.get("baseUrl", "")), "model": str(data.get("model", "")), "apiKey": str(data.get("apiKey", "")), **options}
+        key = str(data.get("apiKey", ""))
+        if not key:
+            try:
+                key = secret_store.load(SETTINGS_PATH.with_name("model-key.bin"))
+            except (OSError, RuntimeError, ValueError):
+                key = ""
+        return {"baseUrl": str(data.get("baseUrl", "")), "model": str(data.get("model", "")), "apiKey": key, **options}
     except (OSError, json.JSONDecodeError):
         return {"baseUrl": "", "model": "", "apiKey": "", **generation.settings({})}
 
@@ -498,6 +544,32 @@ def public_model_config(config: dict[str, Any]) -> dict[str, Any]:
     return {k: config[k] for k in ("configured", "baseUrl", "model")} | {"generation": generation.profile(config)}
 
 
+def backup_archive() -> bytes:
+    """Export local reading data without PDFs or the encrypted API secret."""
+    include = ("analysis", "deep-reading", "term-reading", "notes", "discovery", "reading-priority")
+    root = SKILL_DIR / "data"
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        manifest = {"format": "literature-reviewer-backup", "version": 1,
+                    "includes": list(include), "excludes": ["model-key.bin", "zotero.sqlite", "PDF"]}
+        archive.writestr("backup-manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        for folder in include:
+            directory = root / folder
+            if not directory.is_dir():
+                continue
+            for path in directory.rglob("*"):
+                if path.is_file() and path.suffix.lower() in {".json", ".md", ".txt"}:
+                    archive.write(path, Path("data") / folder / path.relative_to(directory))
+        if SETTINGS_PATH.is_file():
+            try:
+                settings = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
+                settings["apiKey"] = ""
+                archive.writestr("data/settings.json", json.dumps(settings, ensure_ascii=False, indent=2))
+            except (OSError, ValueError):
+                pass
+    return output.getvalue()
+
+
 def save_model_config(payload: dict[str, Any]) -> dict[str, Any]:
     base_url = str(payload.get("baseUrl", "")).strip().rstrip("/")
     model = str(payload.get("model", "")).strip()
@@ -511,9 +583,44 @@ def save_model_config(payload: dict[str, Any]) -> dict[str, Any]:
     if options["thinkingMode"] != "auto" and not generation.is_deepseek(candidate):
         raise ValueError("当前思考选项只适配 DeepSeek 官方 deepseek-flash / deepseek-v4-pro；其他服务请选择跟随默认。")
     SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    SETTINGS_PATH.write_text(json.dumps({"baseUrl": base_url, "model": model, "apiKey": api_key, **options}, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        secret_store.save(SETTINGS_PATH.with_name("model-key.bin"), api_key)
+        stored_key = ""
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"无法安全保存 API Key：{exc}") from None
+    SETTINGS_PATH.write_text(json.dumps({"baseUrl": base_url, "model": model, "apiKey": stored_key, **options}, ensure_ascii=False, indent=2), encoding="utf-8")
     config = model_config()
     return public_model_config(config)
+
+
+def test_model_connection(payload: dict[str, Any]) -> dict[str, Any]:
+    """Probe the provider's model list endpoint; this does not send a prompt."""
+    if not isinstance(payload, dict):
+        raise ValueError("连接测试参数无效")
+    base_url = str(payload.get("baseUrl", "")).strip().rstrip("/")
+    model = str(payload.get("model", "")).strip()
+    if not base_url or not model:
+        raise ValueError("请先填写 API 地址和模型名称")
+    key = str(payload.get("apiKey", "")).strip() or saved_model_config()["apiKey"]
+    request = urllib.request.Request(f"{base_url}/models", headers={"Accept": "application/json"})
+    if key:
+        request.add_header("Authorization", f"Bearer {key}")
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            payload = json.load(response)
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return {"ok": False, "billable": False, "message": "服务未提供 /models 检查接口；地址可达，但仍需保存后实际生成一次才能验证模型。"}
+        if exc.code in (401, 403):
+            return {"ok": False, "billable": False, "message": f"服务拒绝访问（HTTP {exc.code}），请检查 API Key 和权限。"}
+        return {"ok": False, "billable": False, "message": f"服务返回 HTTP {exc.code}。"}
+    except (urllib.error.URLError, OSError) as exc:
+        return {"ok": False, "billable": False, "message": f"无法连接服务：{exc}"}
+    models = payload.get("data", []) if isinstance(payload, dict) else []
+    ids = {str(value.get("id")) for value in models if isinstance(value, dict) and value.get("id")}
+    if ids and model not in ids:
+        return {"ok": False, "billable": False, "message": f"服务可达，但没有发现模型“{model}”；请核对模型 ID。", "models": sorted(ids)[:100]}
+    return {"ok": True, "billable": False, "message": f"服务可达，模型“{model}”已通过 /models 检查。"}
 
 
 def analysis_path(item_key: str) -> Path:
@@ -1033,7 +1140,7 @@ def generate_priority(item: dict[str, Any], analysis: dict[str, Any], research: 
 
 
 try:
-    STORE = ZoteroStore()
+    STORE = DemoStore() if os.environ.get("LITERATURE_REVIEWER_DEMO") == "1" else ZoteroStore()
 except Exception as exc:  # report a useful JSON error in the browser
     STORE = None
     STARTUP_ERROR = str(exc)
@@ -1105,6 +1212,16 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json({"ok": False, "error": STARTUP_ERROR}, HTTPStatus.INTERNAL_SERVER_ERROR)
                 else:
                     self.send_json(STORE.health())
+                return
+            if path == "/api/backup":
+                body = backup_archive()
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Content-Disposition", 'attachment; filename="literature-reviewer-backup.zip"')
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(body)
                 return
             if path == "/api/model":
                 config = model_config()
@@ -1404,6 +1521,14 @@ class Handler(BaseHTTPRequestHandler):
             except (RuntimeError, OSError) as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
             return
+        if path == "/api/model/test":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
+                self.send_json(test_model_connection(payload))
+            except (ValueError, json.JSONDecodeError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
         if path == "/api/model":
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -1419,6 +1544,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if STORE is None:
                 raise RuntimeError(STARTUP_ERROR)
+            if getattr(STORE, "demo", False) is True:
+                raise RuntimeError("示例模式只用于体验界面，不调用模型；请连接自己的 Zotero 后再生成解读。")
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8")) if length else {}
             kind = match.group(2)

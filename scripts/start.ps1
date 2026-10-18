@@ -1,7 +1,9 @@
 param(
   [string]$Python,
   [ValidateRange(0, 65535)][int]$Port = 0,
-  [switch]$Check
+  [switch]$Check,
+  [switch]$Demo,
+  [switch]$Install
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,7 +41,21 @@ if (-not $selected) {
 
 $prefix = $selected.Prefix
 $executable = $selected.Command
+if ($Install) {
+  $venvPython = Join-Path $projectRoot ".venv\Scripts\python.exe"
+  if (-not (Test-Path -LiteralPath $venvPython)) {
+    Write-Host "Creating project virtual environment..."
+    & $executable @prefix -m venv (Join-Path $projectRoot ".venv")
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  }
+  $executable = $venvPython
+  $prefix = @()
+  Write-Host "Installing project dependencies..."
+  & $executable -m pip install -r (Join-Path $projectRoot "requirements.txt")
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 if ($Check) {
+  if ($Demo) { $env:LITERATURE_REVIEWER_DEMO = "1" }
   & $executable @prefix (Join-Path $PSScriptRoot "check_environment.py")
   exit $LASTEXITCODE
 }
@@ -57,6 +73,7 @@ if ($dependencyExit -ne 0) {
 
 $serverArguments = @((Join-Path $PSScriptRoot "server.py"))
 if ($Port -gt 0) { $serverArguments += "$Port" }
+if ($Demo) { $env:LITERATURE_REVIEWER_DEMO = "1"; Write-Host "Demo mode: no Zotero directory or model requests will be used." }
 Write-Host "Open the local URL printed below in your browser. Keep this window open; Ctrl+C stops the server."
 & $executable @prefix @serverArguments
 exit $LASTEXITCODE
