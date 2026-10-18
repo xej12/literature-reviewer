@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Literature Reviewer</title>
   <link rel="stylesheet" href="/static/vendor/pdfjs/web/pdf_viewer.css" />
-  <link rel="stylesheet" href="/static/styles.css?v=onboarding-2" />
-  <link rel="stylesheet" href="/static/translation.css?v=translation-1" />
+  <link rel="stylesheet" href="/static/styles.css?v=pagination-1" />
+  <link rel="stylesheet" href="/static/translation.css?v=selection-notes-4" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
-  <link rel="stylesheet" href="/static/notes.css?v=notes-delete-1" />
+  <link rel="stylesheet" href="/static/notes.css?v=card-dialogue-1" />
   <link rel="stylesheet" href="/static/discovery.css?v=discovery-3" />
 </head>
 <body>
@@ -23,14 +23,11 @@
     <aside class="sidebar">
       <div class="sidebar-title">阅读工作台</div>
       <nav class="workspace-nav" aria-label="工作台">
-        <button id="nav-library" class="workspace-link active"><span>▤ 文献库</span></button>
+        <div class="library-nav"><button id="nav-library" class="workspace-link active" aria-expanded="false"><span>▤ 文献库</span><span class="workspace-caret" aria-hidden="true">⌄</span></button><div id="library-tree" hidden><button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button><div id="collections" class="collection-list"></div></div></div>
         <button id="nav-notes" class="workspace-link"><span>✎ 我的笔记</span><strong id="notes-count">0</strong></button>
+        <button id="nav-cards" class="workspace-link"><span>▧ 我的卡片</span><strong id="cards-count">0</strong></button>
         <button id="nav-discover" class="workspace-link"><span>⌕ 联合查找</span></button>
       </nav>
-      <div class="sidebar-title">我的文献库</div>
-      <button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button>
-      <div id="collections" class="collection-list"></div>
-      <section class="sidebar-notes" aria-label="最近笔记"><div class="sidebar-section-head"><span>最近笔记</span><button id="sidebar-new-note" class="text-button">＋ 新建</button></div><div id="recent-notes"><p class="sidebar-empty">把读过的内容，变成自己的理解。</p></div></section>
       <div class="privacy-note"><span class="dot"></span>文献只读 · 笔记保存在本电脑<br><small>写笔记与导出不消耗 Token</small></div>
     </aside>
     <section id="library-content" class="content">
@@ -68,11 +65,18 @@
       </section>
       <div id="results-info" class="results-info" role="status"></div>
       <div id="items" class="items"></div>
+      <nav id="library-pagination" class="library-pagination" aria-label="文献列表分页"></nav>
     </section>
     <section id="notes-workspace" class="notes-workspace hidden" aria-label="我的笔记">
       <header class="notes-heading"><div><div class="eyebrow">MY RESEARCH NOTES</div><h2>我的笔记</h2><p>记录理解、疑问和证据，让阅读留下自己的痕迹。</p></div><button id="notes-new" class="primary-button">＋ 新建笔记</button></header>
       <p id="notes-message" class="notes-message hidden" role="status"></p>
       <div class="notebook-grid"><aside class="notebook-list"><label class="notes-search-label" for="notes-search">查找笔记</label><input id="notes-search" type="search" placeholder="搜索标题、正文或关联文献" /><div id="notes-filter"></div><div id="notes-list"></div></aside><section id="note-editor-panel" class="note-editor-panel" aria-label="笔记编辑区"></section></div>
+    </section>
+    <section id="cards-workspace" class="cards-workspace hidden" aria-label="我的卡片">
+      <header class="cards-heading"><div><div class="eyebrow">MY READING CARDS</div><h2>我的卡片</h2><p>阅读时保存不熟悉的内容，集中查看和继续理解。</p></div></header>
+      <p id="cards-message" class="cards-message hidden" role="status"></p>
+      <div id="cards-grid" class="cards-grid"></div>
+      <section id="card-detail-view" class="card-detail-view hidden" aria-label="卡片详情"></section>
     </section>
   </main>
   <main id="detail" class="detail hidden" aria-label="文献详情"></main>
@@ -128,13 +132,13 @@
   </div>
   <script src="/static/reading.js?v=wording-1"></script>
   <script src="/static/vendor/katex/katex.min.js"></script>
-  <script src="/static/deep-reading.js?v=wording-1"></script>
+  <script src="/static/deep-reading.js?v=deep-notes-2"></script>
   <script src="/static/app.js?v=onboarding-2"></script>
-  <script src="/static/translation.js?v=term-reading-1"></script>
+  <script src="/static/translation.js?v=selection-notes-4"></script>
   <script src="/static/pdf-reader.js?v=formula-source-1"></script>
   <script src="/static/term-reading.js?v=term-reading-1"></script>
   <script src="/static/vendor/markdown-it/markdown-it.min.js"></script>
-  <script src="/static/notes.js?v=notes-delete-1"></script>
+  <script src="/static/notes.js?v=card-dialogue-1"></script>
   <script src="/static/discovery-export.js?v=discovery-3"></script>
   <script src="/static/discovery.js?v=discovery-3"></script>
   <script src="/static/joint-discovery.js?v=discovery-3"></script>

@@ -9,6 +9,7 @@ data/terminology.json
 data/translations/
 data/term-reading/
 data/notes/
+data/cards/
 data/discovery/
 data/discovery-settings.json
 tests/__pycache__/

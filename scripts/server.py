@@ -38,6 +38,7 @@ import term_reading
 import figure_reading
 import request_jobs
 import notes
+import cards
 import discovery
 import discovery_joint
 import discovery_export
@@ -51,6 +52,7 @@ ANALYSIS_DIR = SKILL_DIR / "data" / "analysis"
 DEEP_READING_DIR = SKILL_DIR / "data" / "deep-reading"
 TERM_READING_DIR = SKILL_DIR / "data" / "term-reading"
 NOTES_DIR = SKILL_DIR / "data" / "notes"
+CARDS_DIR = SKILL_DIR / "data" / "cards"
 DEFAULT_PORT = int(os.environ.get("LITERATURE_REVIEWER_PORT", "8765"))
 
 
@@ -546,7 +548,7 @@ def public_model_config(config: dict[str, Any]) -> dict[str, Any]:
 
 def backup_archive() -> bytes:
     """Export local reading data without PDFs or the encrypted API secret."""
-    include = ("analysis", "deep-reading", "term-reading", "notes", "discovery", "reading-priority")
+    include = ("analysis", "deep-reading", "term-reading", "notes", "cards", "discovery", "reading-priority")
     root = SKILL_DIR / "data"
     output = io.BytesIO()
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
@@ -753,6 +755,63 @@ def generate_summary(key: str) -> dict[str, Any]:
     for field in ("research_question", "methods", "findings", "limitations"):
         result.setdefault(field, "原文未说明")
     return {"itemKey": item["key"], "title": item["title"], "summary": result, "model": config["model"]}
+
+
+def card_model_request(messages: list[dict[str, str]]) -> tuple[str, dict[str, Any]]:
+    config = model_config()
+    if not config["configured"]:
+        raise RuntimeError("尚未配置模型。请先在右上角的模型设置中填写 API 地址、模型名称和 Key。")
+    request_options = generation.request_options(config)
+    # Card dialogue and summaries are plain text; do not force the JSON mode
+    # used by structured paper analysis even when the provider is DeepSeek.
+    request_options.pop("response_format", None)
+    body = json.dumps({"model": config["model"], **request_options, "messages": messages}, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{config['baseUrl']}/chat/completions", data=body,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config['apiKey']}"}, method="POST")
+    try:
+        with request_jobs.urlopen(request, timeout=300, fallback=urllib.request.urlopen) as response:
+            payload = json.loads(request_jobs.read(response).decode("utf-8", errors="replace"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise RuntimeError(f"模型请求失败（HTTP {exc.code}）：{detail}") from exc
+    except (urllib.error.URLError, OSError) as exc:
+        raise RuntimeError(f"无法连接模型服务：{getattr(exc, 'reason', str(exc))}") from exc
+    choices = payload.get("choices") if isinstance(payload, dict) else None
+    message = choices[0].get("message", {}) if isinstance(choices, list) and choices and isinstance(choices[0], dict) else {}
+    answer = model_output.visible_text(message.get("content") if isinstance(message, dict) else "").strip()
+    if not answer:
+        raise RuntimeError("模型没有返回可显示的内容，请检查模型服务响应。")
+    return answer, {"model": config["model"], "usage": generation.response_stats(payload, message)}
+
+
+def ask_card(card_id: str, question: str) -> dict[str, Any]:
+    card = cards.load(CARDS_DIR, card_id)
+    question = str(question or "").strip()
+    if not question or len(question) > cards.MAX_QUESTION:
+        raise ValueError("问题不能为空且不能超过 4000 个字符")
+    history = card.get("conversation") if isinstance(card.get("conversation"), list) else []
+    messages = [{"role": "system", "content": "你是科研阅读助理。围绕用户保存的卡片内容回答问题；只根据卡片摘录和对话中已有信息推理，不确定时明确说明，不要编造原文没有的事实。用清晰、具体的中文解释。"},
+                {"role": "user", "content": f"卡片标题：{card['title']}\n保存的原文摘录：\n{card['content']}"}]
+    for entry in history[-12:]:
+        if isinstance(entry, dict) and entry.get("role") in ("user", "assistant") and isinstance(entry.get("content"), str):
+            messages.append({"role": entry["role"], "content": entry["content"]})
+    messages.append({"role": "user", "content": question})
+    answer, meta = card_model_request(messages)
+    now = cards.datetime.now(cards.timezone.utc).isoformat()
+    conversation = history + [{"role": "user", "content": question, "createdAt": now}, {"role": "assistant", "content": answer, "createdAt": now}]
+    saved = cards.update(CARDS_DIR, card_id, {"conversation": conversation[-cards.MAX_MESSAGES:]})
+    return {"card": saved, "answer": answer, **meta}
+
+
+def summarize_card(card_id: str) -> dict[str, Any]:
+    card = cards.load(CARDS_DIR, card_id)
+    history = card.get("conversation") if isinstance(card.get("conversation"), list) else []
+    transcript = "\n".join(f"{entry.get('role')}: {entry.get('content')}" for entry in history if isinstance(entry, dict))
+    prompt = f"请总结下面这张科研阅读卡片，写成适合显示在卡片表面的中文总结。突出：它在说什么、为什么重要、读者应记住什么。控制在 3-6 个自然段，不要添加原文没有的事实。\n\n卡片标题：{card['title']}\n原文摘录：\n{card['content']}\n\n读者与模型的对话（可作为理解线索）：\n{transcript or '暂无对话'}"
+    answer, meta = card_model_request([{"role": "system", "content": "你是严谨的科研阅读助理，负责把阅读卡片总结成准确、易懂的中文。"}, {"role": "user", "content": prompt}])
+    saved = cards.update(CARDS_DIR, card_id, {"summary": answer})
+    return {"card": saved, "summary": answer, **meta}
 
 
 def deep_reading_state(key: str) -> dict[str, Any]:
@@ -1207,6 +1266,13 @@ class Handler(BaseHTTPRequestHandler):
             if note_match:
                 self.send_json(notes.load(NOTES_DIR, note_match[1]))
                 return
+            if path == "/api/cards":
+                self.send_json(cards.listing(CARDS_DIR))
+                return
+            card_match = re.fullmatch(r"/api/cards/([a-f0-9]{32})", path)
+            if card_match:
+                self.send_json(cards.load(CARDS_DIR, card_match[1]))
+                return
             if path == "/api/health":
                 if STORE is None:
                     self.send_json({"ok": False, "error": STARTUP_ERROR}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -1425,6 +1491,43 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(notes.create(NOTES_DIR, payload, paper), HTTPStatus.CREATED)
             except notes.Conflict as exc:
                 self.send_json({"error": str(exc), "conflict": True}, HTTPStatus.CONFLICT)
+            except FileNotFoundError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            except (ValueError, TypeError, UnicodeError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except (RuntimeError, OSError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
+            return
+        card_match = re.fullmatch(r"/api/cards/([a-f0-9]{32})", path)
+        card_delete = re.fullmatch(r"/api/cards/([a-f0-9]{32})/delete", path)
+        if path == "/api/cards" or card_match or card_delete:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 1_500_000:
+                    raise ValueError("卡片请求为空或过长")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if card_delete:
+                    self.send_json(cards.delete(CARDS_DIR, card_delete[1]))
+                else:
+                    if not isinstance(payload, dict):
+                        raise ValueError("请提供卡片内容")
+                    if card_match and payload.get("action") == "ask":
+                        self.send_json(ask_card(card_match[1], payload.get("question", "")))
+                        return
+                    if card_match and payload.get("action") == "summarize":
+                        self.send_json(summarize_card(card_match[1]))
+                        return
+                    if card_match:
+                        self.send_json(cards.update(CARDS_DIR, card_match[1], payload))
+                        return
+                    paper = None
+                    if payload.get("itemKey"):
+                        if STORE is None:
+                            raise RuntimeError(STARTUP_ERROR)
+                        paper = STORE.item(str(payload["itemKey"]))
+                        if not paper:
+                            raise FileNotFoundError("关联文献不存在")
+                    self.send_json(cards.create(CARDS_DIR, payload, paper), HTTPStatus.CREATED)
             except FileNotFoundError as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
             except (ValueError, TypeError, UnicodeError) as exc:

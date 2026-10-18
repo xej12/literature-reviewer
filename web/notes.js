@@ -41,7 +41,7 @@ noteMarkdown.renderer.rules.link_open=(tokens,i,options,env,self)=>{
 };
 function renderNoteMarkdown(text, exported=false) { return noteMarkdown.render(text || '', {export:exported}); }
 
-const notebook = {notes:[], templates:[], current:null, paper:null, query:'', active:false, timer:null, inFlight:null, routeRequest:0, sidebarRequest:0};
+const notebook = {notes:[], templates:[], current:null, paper:null, query:'', active:false, cardsActive:false, cards:[], timer:null, inFlight:null, routeRequest:0, sidebarRequest:0, cardsRequest:0};
 const noteTime=value=>new Date(value).toLocaleString('zh-CN',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
 function noteMessage(message='') { const el=$('#notes-message'); el.textContent=message; el.classList.toggle('hidden',!message); }
 function noteStatus(message, failed=false) { const el=$('#note-save-status'); if(el){el.textContent=message;el.classList.toggle('failed',failed);} }
@@ -53,13 +53,107 @@ function keepNoteDraft(current) {
 function forgetNoteDraft(id) { try { localStorage.removeItem(noteDraftKey(id)); } catch {} }
 function noteHash(id='', paper=notebook.paper) { return `#/notes${id ? '/'+id : ''}${paper ? '?paper='+encodeURIComponent(paper.key) : ''}`; }
 function navigateNotes(hash) { history.pushState(null,'',hash); applyRoute(); }
+function navigateCards(cardId='') { history.pushState(null,'',`#/cards${cardId ? '/'+cardId : ''}`); applyRoute(); }
 
 async function refreshNoteSidebar() {
-  const request=++notebook.sidebarRequest, result=await getJson('/api/notes');
+  const request=++notebook.sidebarRequest;
+  const [notesResult, cardsResult]=await Promise.all([getJson('/api/notes'), getJson('/api/cards')]);
   if(request!==notebook.sidebarRequest)return;
-  $('#notes-count').textContent=result.total;
-  $('#recent-notes').innerHTML=result.notes.slice(0,3).map(n=>`<button class="recent-note" data-note-id="${n.id}"><span>${escapeHtml(n.title)}</span><small>${escapeHtml(noteTime(n.updatedAt))}</small></button>`).join('') || '<p class="sidebar-empty">把读过的内容，变成自己的理解。</p>';
-  $('#recent-notes').querySelectorAll('button').forEach(b=>b.onclick=()=>navigateNotes(`#/notes/${b.dataset.noteId}`));
+  $('#notes-count').textContent=notesResult.total;
+  $('#cards-count').textContent=cardsResult.total;
+}
+function cardsMessage(message='', failed=false) {
+  const el=$('#cards-message');
+  if(!el)return;
+  el.textContent=message;
+  el.classList.toggle('hidden',!message);
+  el.classList.toggle('failed',failed);
+}
+function cardDate(value) {
+  return value ? new Date(value).toLocaleDateString('zh-CN',{year:'numeric',month:'short',day:'numeric'}) : '';
+}
+function paintCardsWorkspace(cards=[]) {
+  const target=$('#cards-grid');
+  if(!target)return;
+  if(!cards.length) {
+    target.innerHTML='<div class="cards-empty"><div class="cards-empty-icon">▧</div><h3>还没有阅读卡片</h3><p>在论文解读中划选不熟悉的内容，点击“存入卡片”，它会出现在这里。</p></div>';
+    return;
+  }
+  target.innerHTML=cards.map(card=>`<article class="reading-card" data-card-id="${card.id}"><button class="reading-card-main" type="button"><span class="reading-card-label">阅读摘录</span><h3>${escapeHtml(card.title || '未命名卡片')}</h3>${card.summary ? `<div class="reading-card-summary"><strong>当前总结</strong><p>${escapeHtml(card.summary)}</p></div>` : `<p>${escapeHtml(card.excerpt || '')}</p>`}<footer><span>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</span><time>${escapeHtml(cardDate(card.updatedAt || card.createdAt))}</time></footer></button><button class="reading-card-delete text-button" type="button" aria-label="删除卡片">删除</button></article>`).join('');
+  target.querySelectorAll('.reading-card-main').forEach(button=>button.onclick=()=>openCardPreview(button.closest('.reading-card').dataset.cardId));
+  target.querySelectorAll('.reading-card-delete').forEach(button=>button.onclick=event=>{event.stopPropagation();deleteReadingCard(button.closest('.reading-card').dataset.cardId);});
+}
+async function refreshCardsWorkspace() {
+  const request=++notebook.cardsRequest;
+  cardsMessage('正在读取我的卡片…');
+  try {
+    const result=await getJson('/api/cards');
+    if(request!==notebook.cardsRequest)return;
+    notebook.cards=result.cards || [];
+    $('#cards-count').textContent=result.total ?? notebook.cards.length;
+    cardsMessage('');
+    paintCardsWorkspace(notebook.cards);
+  } catch(error) { cardsMessage(`读取卡片失败：${error.message}`,true); }
+}
+function cardDetailStatus(message='',failed=false) {
+  const el=$('#card-detail-status'); if(!el)return;
+  el.textContent=message; el.classList.toggle('failed',failed); el.classList.toggle('hidden',!message);
+}
+function renderCardConversation(card) {
+  const target=$('#card-conversation'); if(!target)return;
+  const entries=Array.isArray(card.conversation) ? card.conversation : [];
+  target.innerHTML=entries.length ? entries.map(entry=>`<div class="card-message ${entry.role==='user'?'from-user':'from-model'}"><span>${entry.role==='user'?'我的问题':'模型回答'}</span><p>${escapeHtml(entry.content)}</p></div>`).join('') : '<p class="card-conversation-empty">还没有提问。先写下你真正想弄懂的问题。</p>';
+}
+function renderCardDetail(card) {
+  const view=$('#card-detail-view'); if(!view)return;
+  $('#cards-grid').classList.add('hidden'); view.classList.remove('hidden');
+  view.innerHTML=`<button id="card-detail-back" class="back-button">← 返回我的卡片</button><div class="card-detail-heading"><div><div class="eyebrow">READING CARD</div><h2>${escapeHtml(card.title || '未命名卡片')}</h2><p>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</p></div><button id="card-detail-delete" class="text-button card-delete-action">删除卡片</button></div><section class="card-original"><div class="card-section-label">保存的原文</div><blockquote>${escapeHtml(card.content)}</blockquote>${card.source?`<small>来源：${escapeHtml(card.source)}</small>`:''}</section><section class="card-qa"><div class="card-section-heading"><div><div class="card-section-label">围绕卡片提问</div><p>只有点击“发送问题”才会调用模型。</p></div></div><div id="card-conversation" class="card-conversation"></div><form id="card-question-form" class="card-question-form"><textarea id="card-question" maxlength="4000" rows="3" placeholder="例如：这里的 coronagraph 在本文中具体承担什么作用？"></textarea><button class="primary-button" type="submit">发送问题</button></form><p id="card-detail-status" class="card-detail-status hidden" role="status"></p></section><section class="card-summary-editor"><div class="card-section-heading"><div><div class="card-section-label">显示在卡片表面的总结</div><p>总结需要你主动点击生成，也可以直接修改后保存。</p></div><div class="card-summary-actions"><button id="card-generate-summary" class="secondary-button" type="button">总结当前内容</button><button id="card-save-summary" class="text-button" type="button">保存修改</button></div></div><textarea id="card-summary-input" maxlength="20000" rows="6" placeholder="尚未生成总结；你也可以直接填写。">${escapeHtml(card.summary || '')}</textarea></section>`;
+  renderCardConversation(card);
+  $('#card-detail-back').onclick=()=>navigateCards();
+  $('#card-detail-delete').onclick=()=>deleteReadingCard(card.id,true);
+  $('#card-question-form').onsubmit=event=>{event.preventDefault();submitCardQuestion(card.id);};
+  $('#card-generate-summary').onclick=()=>summarizeReadingCard(card.id);
+  $('#card-save-summary').onclick=()=>saveReadingCardSummary(card.id);
+}
+async function openCardPreview(cardId) { navigateCards(cardId); }
+async function submitCardQuestion(cardId) {
+  const input=$('#card-question'), button=$('#card-question-form button');
+  const question=input?.value.trim(); if(!question)return;
+  button.disabled=true; cardDetailStatus('正在请求模型…');
+  try {
+    const result=await postJson(`/api/cards/${cardId}`,{action:'ask',question});
+    input.value=''; notebook.cards=notebook.cards.map(card=>card.id===cardId?result.card:card); renderCardConversation(result.card); cardDetailStatus('回答已保存到这张卡片。');
+  } catch(error) { cardDetailStatus(`提问失败：${error.message}`,true); }
+  finally { button.disabled=false; }
+}
+async function summarizeReadingCard(cardId) {
+  const button=$('#card-generate-summary'); if(!button)return;
+  button.disabled=true; cardDetailStatus('正在总结当前内容，模型调用完成前请勿关闭页面。');
+  try {
+    const result=await postJson(`/api/cards/${cardId}`,{action:'summarize'});
+    notebook.cards=notebook.cards.map(card=>card.id===cardId?result.card:card); $('#card-summary-input').value=result.summary || ''; cardDetailStatus('总结已保存，可继续手动修改。');
+    paintCardsWorkspace(notebook.cards);
+  } catch(error) { cardDetailStatus(`总结失败：${error.message}`,true); }
+  finally { button.disabled=false; }
+}
+async function saveReadingCardSummary(cardId) {
+  const input=$('#card-summary-input'), button=$('#card-save-summary'); if(!input || !button)return;
+  button.disabled=true; cardDetailStatus('正在保存修改…');
+  try {
+    const result=await postJson(`/api/cards/${cardId}`,{summary:input.value});
+    notebook.cards=notebook.cards.map(card=>card.id===cardId?result:card); input.value=result.summary || ''; cardDetailStatus('总结修改已保存。'); paintCardsWorkspace(notebook.cards);
+  } catch(error) { cardDetailStatus(`保存失败：${error.message}`,true); }
+  finally { button.disabled=false; }
+}
+async function deleteReadingCard(cardId, fromDetail=false) {
+  const card=notebook.cards.find(value=>value.id===cardId);
+  if(!card || !confirm(`删除卡片“${card.title || '未命名卡片'}”？`))return;
+  try {
+    await postJson(`/api/cards/${cardId}/delete`);
+    if(fromDetail) navigateCards();
+    await refreshCardsWorkspace();
+    refreshNoteSidebar().catch(()=>{});
+  } catch(error) { cardsMessage(`删除失败：${error.message}`,true); }
 }
 async function refreshNoteList() {
   const request=notebook.listRequest=(notebook.listRequest || 0)+1;
@@ -69,12 +163,12 @@ async function refreshNoteList() {
   notebook.notes=result.notes;
   $('#notes-filter').innerHTML=notebook.paper ? `<p>当前文献的笔记 <button id="notes-all" class="text-button">查看全部</button></p>` : `<p>${result.total} 篇笔记 · 最近修改优先</p>`;
   $('#notes-all')?.addEventListener('click',()=>navigateNotes('#/notes'));
-  $('#notes-list').innerHTML=result.notes.map(n=>`<button class="notebook-card ${notebook.current?.note.id===n.id?'selected':''}" data-note-id="${n.id}"><strong>${escapeHtml(n.title)}</strong><span>${escapeHtml(n.excerpt || '空白笔记，等待写下你的想法')}</span><small>${n.paper?'关联文献 · ':''}${escapeHtml(noteTime(n.updatedAt))}</small></button>`).join('') || `<p class="notes-list-empty">${notebook.query?'没有匹配的笔记，试试其他关键词。':'还没有笔记。选一个模板，写下第一个想法。'}</p>`;
+  $('#notes-list').innerHTML=result.notes.map(n=>`<button class="notebook-card ${notebook.current?.note.id===n.id?'selected':''}" data-note-id="${n.id}"><strong>${escapeHtml(n.title)}</strong><span>${escapeHtml(n.excerpt || '空白笔记，等待写下你的想法')}</span><small>${n.paper?'关联文献 · ':''}${escapeHtml(noteTime(n.updatedAt))}</small></button>`).join('') || `<p class="notes-list-empty">${notebook.query?'没有匹配的笔记，试试其他关键词。':'还没有笔记。点击“新建笔记”开始记录。'}</p>`;
   $('#notes-list').querySelectorAll('button').forEach(b=>b.onclick=()=>navigateNotes(noteHash(b.dataset.noteId)));
   if(result.unreadable)noteMessage(`${result.unreadable} 个笔记文件无法读取，已保留原文件，请检查备份。`);
 }
 function templatePicker() {
-  $('#note-editor-panel').innerHTML=`<div class="note-start"><span class="note-start-mark">✎</span><h3>从一个问题开始记</h3><p>${notebook.paper ? `关联文献：${escapeHtml(notebook.paper.title)}` : '选择一个模板。模板只是问题提纲，内容由你自己掌握。'}</p><div class="note-template-grid">${notebook.templates.map(t=>`<button class="note-template" data-template="${escapeHtml(t.id)}"><strong>${escapeHtml(t.name)}</strong><span>${escapeHtml(t.description)}</span><small>使用此模板 →</small></button>`).join('')}</div><p class="note-local-hint">笔记保存在本电脑 · 不调用模型 · 不修改 Zotero 原库</p></div>`;
+  $('#note-editor-panel').innerHTML=`<div class="note-start"><span class="note-start-mark">✎</span><h3>新建一篇空白笔记</h3><p>${notebook.paper ? `关联文献：${escapeHtml(notebook.paper.title)}` : '直接写下你的理解、术语、疑问和下一步。'}</p><div class="note-template-grid"><button class="note-template" data-template="blank"><strong>空白笔记</strong><span>不预设结构，打开后直接填写。</span><small>开始记录 →</small></button></div><p class="note-local-hint">笔记保存在本电脑 · 不调用模型 · 不修改 Zotero 原库</p></div>`;
   $('#note-editor-panel').querySelectorAll('[data-template]').forEach(button=>button.onclick=async()=>{
     $('#note-editor-panel').querySelectorAll('button').forEach(b=>b.disabled=true);
     try { const note=await postJson('/api/notes',{template:button.dataset.template,itemKey:notebook.paper?.key || ''}); refreshNoteSidebar().catch(()=>{}); navigateNotes(noteHash(note.id)); }
@@ -159,7 +253,7 @@ function renderNoteEditor(current) {
   $('#note-title').value=note.title;$('#note-body').value=note.body;updateNotePreview();
   $('.note-export-actions').insertAdjacentHTML('beforeend','<button id="note-delete" class="text-button note-delete">删除笔记</button>');
   $('#note-delete').onclick=deleteCurrentNote;
-  $('#note-editor-panel').insertAdjacentHTML('beforeend','<details class="note-format-help"><summary>格式与导出说明</summary><p>用上方按钮插入标题、粗体、列表和引文，点“预览”查看排版。行内公式用 $...$，独立公式用两行 $$ 包住。模板里的提示文字可以直接改写或删除。</p><p>Markdown 适合继续编辑；HTML 可以离线打开。点击“打印 / 存为 PDF”，在浏览器打印窗口选择“另存为 PDF”。本版暂不支持图片附件与自定义模板；Markdown 图片引用不会自动加载。</p></details>');
+  $('#note-editor-panel').insertAdjacentHTML('beforeend','<details class="note-format-help"><summary>格式与导出说明</summary><p>用上方按钮插入标题、粗体、列表和引文，点“预览”查看排版。行内公式用 $...$，独立公式用两行 $$ 包住。</p><p>Markdown 适合继续编辑；HTML 可以离线打开。点击“打印 / 存为 PDF”，在浏览器打印窗口选择“另存为 PDF”。本版暂不支持图片附件与自定义模板；Markdown 图片引用不会自动加载。</p></details>');
   noteStatus(current.dirty?'已恢复浏览器草稿 · 等待保存':`已保存到本电脑 · ${noteTime(note.updatedAt)}`);
   $('#note-title').addEventListener('input',changeNote);$('#note-body').addEventListener('input',changeNote);
   $('#note-save').onclick=()=>saveNote();$('#note-export').onclick=downloadNote;
@@ -206,18 +300,44 @@ async function noteRoute() {
     await refreshNoteList();await refreshNoteSidebar();
   }catch(error){noteMessage(error.message);}
 }
+async function cardsRoute(cardId='') {
+  notebook.active=false;
+  notebook.cardsActive=true;
+  notebook.current=null;
+  await refreshCardsWorkspace();
+  if(cardId) {
+    try {
+      const card=await getJson(`/api/cards/${cardId}`);
+      renderCardDetail(card);
+    } catch(error) { cardsMessage(`打开卡片失败：${error.message}`,true); }
+  } else {
+    $('#card-detail-view').classList.add('hidden');
+    $('#cards-grid').classList.remove('hidden');
+  }
+}
 window.notesWorkspace={
   init(){
-    $('#nav-library').onclick=()=>navigateNotes('#/library');$('#nav-notes').onclick=()=>navigateNotes('#/notes');
-    $('#notes-new').onclick=()=>navigateNotes(noteHash());$('#sidebar-new-note').onclick=()=>navigateNotes('#/notes');
+    $('#nav-library').onclick=()=>{
+      const button=$('#nav-library'),tree=$('#library-tree');
+      const onLibrary=location.hash==='#/library' || location.hash==='#/';
+      if(!onLibrary){button.setAttribute('aria-expanded','true');tree.hidden=false;navigateNotes('#/library');return;}
+      const expanded=button.getAttribute('aria-expanded')==='true';
+      button.setAttribute('aria-expanded',String(!expanded));
+      tree.hidden=expanded;
+    };
+    $('#nav-notes').onclick=()=>navigateNotes('#/notes');$('#nav-cards').onclick=()=>navigateCards();
+    $('#notes-new').onclick=()=>navigateNotes(noteHash());
     $('#notes-search').oninput=event=>{notebook.query=event.target.value.trim();refreshNoteList().catch(error=>noteMessage(error.message));};
     refreshNoteSidebar().catch(()=>{$('#notes-count').textContent='—';});
     window.addEventListener('beforeunload',event=>{if(notebook.current?.dirty){keepNoteDraft(notebook.current);event.preventDefault();event.returnValue='';}});
     document.addEventListener('keydown',event=>{if(notebook.active && (event.ctrlKey || event.metaKey) && event.key.toLowerCase()==='s'){event.preventDefault();saveNote();}});
   },
   route:noteRoute,
+  cardsRoute,
   flush:()=>saveNote(),
+  refresh:()=>Promise.all([refreshNoteSidebar(), notebook.active ? refreshNoteList() : Promise.resolve(), notebook.cardsActive ? refreshCardsWorkspace() : Promise.resolve()]),
+  open:id=>navigateNotes(noteHash(id)),
   keepRoute(){if(notebook.current)history.replaceState(null,'',noteHash(notebook.current.note.id));},
-  leave(){notebook.active=false;notebook.routeRequest++;},
+  leave(){notebook.active=false;notebook.cardsActive=false;notebook.routeRequest++;},
   forPaper(item){notebook.paper=item;navigateNotes(noteHash('',item));}
 };

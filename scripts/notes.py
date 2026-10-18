@@ -81,8 +81,15 @@ def create(directory: Path, payload: dict, paper: dict | None = None) -> dict:
         raise ValueError("模板不存在")
     now = datetime.now(timezone.utc).isoformat()
     metadata = {key: paper.get(key, "") for key in ("key", "title", "creators", "date", "publicationTitle", "doi")} if paper else None
-    title = (f"{template['name']} · {paper['title']}" if paper else f"我的{template['name']}")[:200]
-    value = {"id": uuid.uuid4().hex, "title": title, "body": template["body"], "template": template["id"],
+    requested_title = payload.get("title")
+    requested_body = payload.get("body")
+    if requested_title is not None and (not isinstance(requested_title, str) or not requested_title.strip() or len(requested_title) > 200):
+        raise ValueError("笔记标题需为 1–200 个字符")
+    if requested_body is not None and (not isinstance(requested_body, str) or len(requested_body) > MAX_BODY):
+        raise ValueError("笔记正文不能超过 200000 个字符")
+    title = (requested_title.strip() if isinstance(requested_title, str) else (f"{template['name']} · {paper['title']}" if paper else f"我的{template['name']}"))[:200]
+    body = requested_body if isinstance(requested_body, str) else template["body"]
+    value = {"id": uuid.uuid4().hex, "title": title, "body": body, "template": template["id"],
              "paper": metadata, "createdAt": now, "updatedAt": now, "revision": 1}
     with LOCK:
         return _write(directory, value)

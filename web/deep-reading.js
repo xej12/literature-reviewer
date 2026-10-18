@@ -145,6 +145,74 @@ function deepSources(block, source) {
     <p class="deep-citation-note">定位经过编号匹配；是否支持上方解释，请结合原文核对。</p></details>`;
 }
 
+function deepNoteExcerpt(block, source) {
+  const title = String(block?.title || "深度解读").trim();
+  const body = String(block?.body || "").trim();
+  const basisLabels = {paper: "论文原文", background: "补充背景 / 教学示例", inference: "分析推断 / 建议"};
+  const lines = [`## 深度解读摘录：${title}`, "", body, "", `> 依据类型：${basisLabels[block?.basis] || "待核对"}`];
+  const sources = Array.isArray(block?.sources) ? block.sources : [];
+  if (sources.length) {
+    lines.push("", "### 原文依据");
+    sources.forEach(sourceItem => {
+      const page = Number.isInteger(sourceItem.page) && sourceItem.page > 0 ? `第 ${sourceItem.page} 页` : "页码未标明";
+      const quote = String(sourceItem.text || "").trim().replace(/\n/g, "\n> ");
+      lines.push(`- ${page}${quote ? `：\n> ${quote}` : ""}`);
+    });
+  }
+  if (source?.partial) lines.push("", "> 注：本段来自部分正文材料，请结合 PDF 核对上下文。");
+  return lines.join("\n").trim();
+}
+
+async function saveDeepBlockToNote(view, block, target, status, source) {
+  target.disabled = true;
+  status.textContent = "正在保存…";
+  status.classList.remove("failed");
+  try {
+    let note;
+    if (target.dataset.noteAction === "new") {
+      note = await postJson("/api/notes", {template: "blank", itemKey: view.item.key});
+    } else {
+      note = await getJson(`/api/notes/${target.dataset.noteId}`);
+    }
+    const excerpt = deepNoteExcerpt(block, source);
+    const marker = `## 深度解读摘录：${String(block?.title || "深度解读").trim()}`;
+    if (note.body.includes(marker)) {
+      status.textContent = "这段内容已经在该笔记中";
+    } else {
+      const body = `${note.body.trimEnd()}${note.body.trim() ? "\n\n---\n\n" : ""}${excerpt}\n`;
+      const saved = await postJson(`/api/notes/${note.id}`, {title: note.title, body, revision: note.revision});
+      status.textContent = `已保存到「${saved.title}」`;
+    }
+    if (window.notesWorkspace?.refresh) window.notesWorkspace.refresh().catch(() => {});
+    target.closest(".deep-note-capture")?.classList.add("saved");
+  } catch (error) {
+    status.textContent = `保存失败：${error.message}`;
+    status.classList.add("failed");
+    target.disabled = false;
+  }
+}
+
+async function openDeepNoteCapture(view, block, section, source) {
+  const capture = section.querySelector(".deep-note-capture");
+  if (!capture) return;
+  if (!capture.classList.contains("hidden")) { capture.classList.add("hidden"); return; }
+  capture.classList.remove("hidden");
+  capture.innerHTML = '<span class="deep-note-loading">正在读取当前文献的笔记…</span>';
+  try {
+    const result = await getJson(`/api/notes?itemKey=${encodeURIComponent(view.item.key)}`);
+    const notes = await Promise.all(result.notes.slice(0, 30).map(entry => getJson(`/api/notes/${entry.id}`)));
+    capture.innerHTML = `<div class="deep-note-capture-head"><strong>保存这段解读</strong><button type="button" class="text-button deep-note-close">收起</button></div>
+      <p class="deep-note-hint">内容会保留标题、正文、依据类型和原文页码；整个过程不调用模型。</p>
+      <div class="deep-note-options"><button type="button" class="secondary-button deep-note-action" data-note-action="new">新建快速摘记</button>${notes.length ? `<span class="deep-note-or">或追加到：</span>${notes.map(note => `<button type="button" class="text-button deep-note-action" data-note-id="${note.id}">${escapeHtml(note.title)}</button>`).join("")}` : ""}</div>
+      <span class="deep-note-status" role="status"></span>`;
+    capture.querySelector(".deep-note-close").onclick = () => capture.classList.add("hidden");
+    const status = capture.querySelector(".deep-note-status");
+    capture.querySelectorAll(".deep-note-action").forEach(button => button.onclick = () => saveDeepBlockToNote(view, block, button, status, source));
+  } catch (error) {
+    capture.innerHTML = `<span class="deep-note-status failed">读取笔记失败：${escapeHtml(error.message)}</span>`;
+  }
+}
+
 function paintDeepReading(view) {
   if (activeDeepView !== view || $("#analysis-modal").classList.contains("hidden") || !$("#analysis-modal").classList.contains("deep-modal")) return;
   const panel = $("#analysis-modal-body"), data = view.data;
@@ -186,11 +254,16 @@ function paintDeepReading(view) {
     ${draft ? `<section class="deep-draft"><strong>${noAnswer ? "本次未生成正文，已保留请求状态" : "本次答复已保存在本电脑，暂未作为完整章节采用"}</strong><p>${escapeHtml(noAnswer && draft.finishReason === "length" ? "模型在输出正文前耗尽了本次预算。思考模式也会占用预算；本工具现已取消旧的 8000 固定限制，重新生成会使用上方当前设置。" : draft.formatError || "答复等待本地整理。")}</p>${!disabled && draftHasText ? `<button id="deep-recover" class="secondary-button">重新整理已存答复（免费）</button>` : ""}${draftHasText ? `<details><summary>查看已保存答复（免费）</summary><pre>${escapeHtml(draft.content)}</pre></details>` : `<p>没有正文可供本地整理，需要重新生成。不会自动调用模型。</p>`}${draft.usage?.completionTokens !== undefined ? `<p>本次输出用量 ${escapeHtml(draft.usage.completionTokens)} Token${draft.usage.reasoningTokens !== undefined ? `，其中思考用量 ${escapeHtml(draft.usage.reasoningTokens)} Token` : ""}。</p>` : ""}${chapter ? `<p>下方继续显示上一次成功生成的章节。</p>` : ""}</section>` : ""}
     ${chapter ? `<p class="deep-intro">${escapeHtml(chapter.intro)}</p>
       ${(chapter.notices || []).map(n => `<p class="deep-warning">${escapeHtml(n)}</p>`).join("")}
-      ${chapter.blocks.map((b, i) => `<section class="deep-block"><div class="deep-block-heading"><h4>${i + 1}. ${escapeHtml(b.title)}</h4><span class="deep-basis ${b.basis}">${escapeHtml(basisLabels[b.basis] || "待核对")}${b.unverified ? " · 定位待核对" : ""}</span></div><div class="deep-prose">${renderDeepText(b.body, b, source)}</div>${deepSources(b, source)}</section>`).join("")}
+      ${(chapter.blocks || []).map((b, i) => `<section class="deep-block"><div class="deep-block-heading"><h4>${i + 1}. ${escapeHtml(b.title)}</h4><div class="deep-block-meta"><span class="deep-basis ${b.basis}">${escapeHtml(basisLabels[b.basis] || "待核对")}${b.unverified ? " · 定位待核对" : ""}</span><button type="button" class="text-button deep-save-note" data-block-index="${i}">保存到笔记</button></div></div><div class="deep-prose">${renderDeepText(b.body, b, source)}</div><div class="deep-note-capture hidden"></div>${deepSources(b, source)}</section>`).join("")}
       <p class="deep-saved">已保存于 ${escapeHtml(chapter.generatedAt || "本电脑")} · 模型 ${escapeHtml(chapter.model || "未记录")}</p>` : draft ? "" : `<div class="deep-empty"><h4>${escapeHtml(chapterInfo?.title || (isTerm ? '术语精讲' : '本章'))}会解释什么？</h4><p>${escapeHtml(isTerm ? '专业译名与含义 → 必要基础 → 工作机制 → 在本文中的作用 → 教学例子与必要公式 → 易混淆概念与局限 → 自检题和参考答案。论文事实与补充教学分开，提供可定位的原文依据。' : deepChapterDescriptions[view.section] || "")}</p><p>${isTerm ? '输入一个术语或从左侧选择，再点“讲透这个术语”才会调用模型。' : '点击上方“生成本章”开始。已有的其他章节和旧版解读会保留。'}</p></div>`}`}
     </main></div>`;
   panel.querySelectorAll(".deep-chapter").forEach(button => button.onclick = () => {
     view.section = button.dataset.section; view.revision = -1; view.error = ""; paintDeepReading(view);
+  });
+  panel.querySelectorAll(".deep-save-note").forEach(button => {
+    const block = (chapter?.blocks || [])[Number(button.dataset.blockIndex)];
+    const section = button.closest(".deep-block");
+    button.onclick = () => openDeepNoteCapture(view, block, section, source);
   });
   $("#deep-version")?.addEventListener("change", event => { view.archive = Number(event.target.value); view.revision = -1; view.error = ""; paintDeepReading(view); });
   $("#deep-revision")?.addEventListener("change", event => { view.revision = Number(event.target.value); view.error = ""; paintDeepReading(view); });

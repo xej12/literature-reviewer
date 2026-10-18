@@ -1,4 +1,4 @@
-const state = { collection: "", query: "", items: [], selected: null, model: null, demo: false, listScroll: 0, detailRequest: 0, progressFilter: "all", libraryRequest: 0, libraryLoading: false, lastSync: 0, readingSort: "recent", readingTier: "all", divisionFilter: "all", research: null };
+const state = { collection: "", query: "", items: [], selected: null, model: null, demo: false, listScroll: 0, detailRequest: 0, progressFilter: "all", libraryRequest: 0, libraryLoading: false, lastSync: 0, readingSort: "recent", readingTier: "all", divisionFilter: "all", research: null, page: 1, pageSize: 6, matchingCount: 0 };
 const $ = (s) => document.querySelector(s);
 
 function escapeHtml(value = "") {
@@ -106,7 +106,8 @@ function renderProgress(progress, matchingCount) {
   $("#progress-description").textContent = `${progress.summary} / ${progress.total} 篇已有论文解读（${percent}%） · 点击数字卡片筛选，查看已保存结果不消耗 Token`;
   document.querySelectorAll(".progress-card").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.status === state.progressFilter)));
   $("#clear-progress-filter").setAttribute("aria-pressed", String(state.progressFilter === "all"));
-  $("#results-info").textContent = `${progressLabels[state.progressFilter]} · ${matchingCount} 篇${matchingCount > state.items.length ? `，当前显示前 ${state.items.length} 篇，可通过搜索缩小范围` : ""}`;
+  const totalPages = Math.max(1, Math.ceil(state.items.length / state.pageSize));
+  $("#results-info").textContent = `${progressLabels[state.progressFilter]} · ${matchingCount} 篇${totalPages > 1 ? ` · 第 ${Math.min(state.page, totalPages)} / ${totalPages} 页` : ""}`;
 }
 
 function analysisBadges(item) {
@@ -116,11 +117,17 @@ function analysisBadges(item) {
 
 function renderItems() {
   const target = $("#items");
+  const pagination = $("#library-pagination");
   if (!state.items.length) {
     target.innerHTML = `<div class="no-results"><div>⌁</div><p>当前筛选下没有文献</p><small>可以切换分区分类、点击“全部状态”、更换关键词或切换集合</small></div>`;
+    pagination.innerHTML = "";
     return;
   }
-  target.innerHTML = state.items.map((item) => `
+  const totalPages = Math.max(1, Math.ceil(state.items.length / state.pageSize));
+  state.page = Math.min(Math.max(1, state.page), totalPages);
+  const start = (state.page - 1) * state.pageSize;
+  const visibleItems = state.items.slice(start, start + state.pageSize);
+  target.innerHTML = visibleItems.map((item) => `
     <button class="item-card ${state.selected?.key === item.key ? "selected" : ""}" data-key="${item.key}">
       <div class="item-mark">${escapeHtml(initials(item))}</div>
       <div class="item-main">
@@ -136,6 +143,15 @@ function renderItems() {
     </button>
   `).join("");
   document.querySelectorAll(".item-card").forEach((card) => card.addEventListener("click", () => selectItem(card.dataset.key)));
+  pagination.innerHTML = totalPages > 1 ? `<button class="page-nav-button" data-page="prev" ${state.page===1?'disabled':''}>上一页</button><span>第 ${state.page} / ${totalPages} 页 · 共 ${state.items.length} 篇</span><button class="page-nav-button" data-page="next" ${state.page===totalPages?'disabled':''}>下一页</button>` : `<span>共 ${state.items.length} 篇文献</span>`;
+  pagination.querySelectorAll('[data-page]').forEach(button=>button.onclick=()=>{
+    if(button.disabled)return;
+    state.page += button.dataset.page==='next' ? 1 : -1;
+    renderItems();
+    const totalPages = Math.max(1, Math.ceil(state.items.length / state.pageSize));
+    $("#results-info").textContent = `${progressLabels[state.progressFilter]} · ${state.matchingCount} 篇${totalPages > 1 ? ` · 第 ${state.page} / ${totalPages} 页` : ""}`;
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
 }
 
 function renderDetail(item) {
@@ -590,15 +606,18 @@ async function applyRoute() {
   const discoveryRoute = location.hash.match(/^#\/items\/([A-Z0-9]+)\/discover$/);
   const jointRoute = location.hash.match(/^#\/discover(?:\/([a-f0-9]{64}))?(?:\?seed=([A-Z0-9]+))?$/);
   const notesRoute = location.hash.startsWith('#/notes');
+  const cardsRoute = location.hash.match(/^#\/cards(?:\/([a-f0-9]{32}))?$/);
   const detail = $("#detail");
   $("#library").classList.toggle("hidden", Boolean(match || discoveryRoute || jointRoute));
   detail.classList.toggle("hidden", !match);
   $('#discovery-workspace').classList.toggle('hidden', !discoveryRoute);
   $('#joint-workspace').classList.toggle('hidden', !jointRoute);
-  $('#library-content').classList.toggle('hidden', notesRoute);
+  $('#library-content').classList.toggle('hidden', notesRoute || cardsRoute);
   $('#notes-workspace').classList.toggle('hidden', !notesRoute);
+  $('#cards-workspace').classList.toggle('hidden', !cardsRoute);
   $('#nav-notes').classList.toggle('active', notesRoute);
-  $('#nav-library').classList.toggle('active', !notesRoute && !jointRoute);
+  $('#nav-cards').classList.toggle('active', Boolean(cardsRoute));
+  $('#nav-library').classList.toggle('active', !notesRoute && !cardsRoute && !jointRoute);
   $('#nav-discover').classList.toggle('active', !!jointRoute);
   closeAnalysis();
   window.discoveryWorkspace?.leave();
@@ -619,6 +638,12 @@ async function applyRoute() {
     state.selected = null;
     document.title = '我的笔记 · 文献梳理工具';
     await window.notesWorkspace.route();
+    return;
+  }
+  if (cardsRoute) {
+    state.selected = null;
+    document.title = '我的卡片 · 文献梳理工具';
+    await window.notesWorkspace.cardsRoute(cardsRoute[1] || '');
     return;
   }
   window.notesWorkspace?.leave();
@@ -668,6 +693,8 @@ async function loadItems({ quiet = false } = {}) {
     state.allCount = result.itemCount;
     state.demo = Boolean(result.demo);
     state.items = result.items;
+    state.matchingCount = result.matchingCount;
+    state.page = 1;
     $("#health").textContent = result.demo ? "示例模式 · 1 篇" : `Zotero ${result.zoteroVersion || "已连接"} · ${result.itemCount} 篇`;
     $("#health").className = "health ok";
     $("#message").classList.add("hidden");

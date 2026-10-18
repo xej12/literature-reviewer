@@ -47,6 +47,12 @@ class NotesTests(unittest.TestCase):
         self.assertEqual(saved['revision'], 2)
         self.assertEqual(saved, next(value for value in results if value))
 
+    def test_quick_record_can_create_a_blank_card_with_custom_content(self):
+        note = notes.create(self.directory, {'template': 'blank', 'title': '快速记录 · coronagraph', 'body': '日冕仪需要进一步理解。'}, {'key': 'PAPER', 'title': 'Paper'})
+        self.assertEqual(note['title'], '快速记录 · coronagraph')
+        self.assertEqual(note['body'], '日冕仪需要进一步理解。')
+        self.assertEqual(note['paper']['key'], 'PAPER')
+
     def test_search_by_body_and_filter_by_paper(self):
         first = notes.create(self.directory, {'template': 'blank'}, {'key': 'PAPER', 'title': '日冕仪'})
         notes.update(self.directory, first['id'], {'title': '理解', 'body': 'coherent wavefront', 'revision': 1})
