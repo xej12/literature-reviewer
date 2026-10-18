@@ -10,60 +10,124 @@
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
   <link rel="stylesheet" href="/static/notes.css?v=card-dialogue-1" />
   <link rel="stylesheet" href="/static/discovery.css?v=discovery-3" />
+  <link rel="stylesheet" href="/static/workspace.css?v=workspace-1" />
+  <link rel="stylesheet" href="/static/research-pages.css?v=research-pages-1" />
+  <link rel="stylesheet" href="/static/reading-views.css?v=reading-views-1" />
 </head>
 <body>
+  <!-- Selected Lucide SVGs; licenses in /static/vendor/lucide/LICENSE. -->
+  <svg class="workspace-icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" width="0" height="0">
+    <symbol id="workspace-icon-library-big" viewBox="0 0 24 24">
+      <rect width="8" height="18" x="3" y="3" rx="1" />
+  <path d="M7 3v18" />
+  <path d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z" />
+    </symbol>
+    <symbol id="workspace-icon-notebook-pen" viewBox="0 0 24 24">
+      <path d="M13.4 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7.4" />
+  <path d="M2 6h4" />
+  <path d="M2 10h4" />
+  <path d="M2 14h4" />
+  <path d="M2 18h4" />
+  <path d="M21.378 5.626a1 1 0 1 0-3.004-3.004l-5.01 5.012a2 2 0 0 0-.506.854l-.837 2.87a.5.5 0 0 0 .62.62l2.87-.837a2 2 0 0 0 .854-.506z" />
+    </symbol>
+    <symbol id="workspace-icon-layers" viewBox="0 0 24 24">
+      <path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z" />
+  <path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12" />
+  <path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17" />
+    </symbol>
+    <symbol id="workspace-icon-network" viewBox="0 0 24 24">
+      <rect x="16" y="16" width="6" height="6" rx="1" />
+  <rect x="2" y="16" width="6" height="6" rx="1" />
+  <rect x="9" y="2" width="6" height="6" rx="1" />
+  <path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" />
+  <path d="M12 12V8" />
+    </symbol>
+    <symbol id="workspace-icon-search" viewBox="0 0 24 24">
+      <path d="m21 21-4.34-4.34" />
+  <circle cx="11" cy="11" r="8" />
+    </symbol>
+    <symbol id="workspace-icon-settings-2" viewBox="0 0 24 24">
+      <path d="M14 17H5" />
+  <path d="M19 7h-9" />
+  <circle cx="17" cy="17" r="3" />
+  <circle cx="7" cy="7" r="3" />
+    </symbol>
+    <symbol id="workspace-icon-refresh-cw" viewBox="0 0 24 24">
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+  <path d="M21 3v5h-5" />
+  <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+  <path d="M8 16H3v5" />
+    </symbol>
+    <symbol id="workspace-icon-book-open" viewBox="0 0 24 24">
+      <path d="M12 5v16" />
+  <path d="M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z" />
+    </symbol>
+    <symbol id="workspace-icon-chevron-right" viewBox="0 0 24 24">
+      <path d="m9 18 6-6-6-6" />
+    </symbol>
+    <symbol id="workspace-icon-chevron-down" viewBox="0 0 24 24">
+      <path d="m6 9 6 6 6-6" />
+    </symbol>
+    <symbol id="workspace-icon-target" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" />
+  <circle cx="12" cy="12" r="6" />
+  <circle cx="12" cy="12" r="2" />
+    </symbol>
+  </svg>
   <header class="topbar">
-    <div>
-      <div class="eyebrow">LOCAL RESEARCH WORKSPACE</div>
-      <h1>文献梳理工具</h1>
+    <div class="workspace-brand">
+      <span class="workspace-brand-mark" aria-hidden="true"><svg class="workspace-icon"><use href="#workspace-icon-book-open"></use></svg></span>
+      <div><h1>文献梳理工具</h1><p>你的科研阅读工作台</p></div>
     </div>
-    <div class="top-actions"><button id="settings-button" class="settings-button">模型设置</button><div id="health" class="health pending">正在连接 Zotero…</div></div>
+    <div class="top-actions"><div id="health" class="health pending" role="status">正在连接 Zotero…</div><button id="settings-button" class="settings-button" aria-label="模型设置"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-settings-2"></use></svg><span>模型设置</span></button></div>
   </header>
   <main id="library" class="layout">
     <aside class="sidebar">
       <div class="sidebar-title">阅读工作台</div>
       <nav class="workspace-nav" aria-label="工作台">
-        <div class="library-nav"><button id="nav-library" class="workspace-link active" aria-expanded="false"><span>▤ 文献库</span><span class="workspace-caret" aria-hidden="true">⌄</span></button><div id="library-tree" hidden><button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button><div id="collections" class="collection-list"></div></div></div>
-        <button id="nav-notes" class="workspace-link"><span>✎ 我的笔记</span><strong id="notes-count">0</strong></button>
-        <button id="nav-cards" class="workspace-link"><span>▧ 我的卡片</span><strong id="cards-count">0</strong></button>
-        <button id="nav-discover" class="workspace-link"><span>⌕ 联合查找</span></button>
+        <div class="library-nav"><button id="nav-library" class="workspace-link active" aria-expanded="false" aria-controls="library-tree"><span class="workspace-nav-label"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-library-big"></use></svg>文献库</span><svg class="workspace-icon workspace-caret" aria-hidden="true"><use href="#workspace-icon-chevron-down"></use></svg></button><div id="library-tree" hidden><button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button><div id="collections" class="collection-list"></div></div></div>
+        <button id="nav-notes" class="workspace-link"><span class="workspace-nav-label"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-notebook-pen"></use></svg>我的笔记</span><strong id="notes-count">0</strong></button>
+        <button id="nav-cards" class="workspace-link"><span class="workspace-nav-label"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-layers"></use></svg>我的卡片</span><strong id="cards-count">0</strong></button>
+        <button id="nav-discover" class="workspace-link"><span class="workspace-nav-label"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-network"></use></svg>联合查找</span></button>
       </nav>
-      <div class="privacy-note"><span class="dot"></span>文献只读 · 笔记保存在本电脑<br><small>写笔记与导出不消耗 Token</small></div>
+      <div class="sidebar-footer">
+        <div class="library-sync"><span class="sidebar-footer-label">文献库同步</span><button id="refresh-library" class="secondary-button"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-refresh-cw"></use></svg>刷新文献库</button><span id="sync-status" role="status">正在读取本电脑 Zotero…</span></div>
+        <div class="privacy-note"><span class="dot"></span>资料保存在本电脑<br><small>文献只读 · 写笔记不消耗 Token</small></div>
+      </div>
     </aside>
     <section id="library-content" class="content">
       <div class="toolbar">
         <div>
-          <div class="eyebrow">ZOTERO LIBRARY</div>
+          <div class="eyebrow">文献库 / ZOTERO</div>
           <h2 id="section-title">全部文献</h2>
         </div>
-        <label class="search"><span>⌕</span><input id="search" placeholder="搜索标题或摘要" /></label>
+        <label class="search"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-search"></use></svg><input id="search" type="search" aria-label="搜索文献标题或摘要" placeholder="搜索标题或摘要…" /></label>
       </div>
       <div id="message" class="message hidden"></div>
-      <div class="library-sync"><button id="refresh-library" class="secondary-button">刷新文献库</button><span id="sync-status" role="status">正在读取本电脑 Zotero…</span></div>
       <section id="progress-overview" class="progress-overview hidden" aria-label="分析进度总览">
-        <div class="progress-heading"><div><h3>分析进度</h3><p id="progress-scope"></p></div><button id="clear-progress-filter" class="text-button" aria-pressed="true">全部状态</button></div>
+        <div class="progress-heading"><div><h3>阅读进度</h3><p id="progress-scope"></p></div><button id="clear-progress-filter" class="text-button" aria-pressed="true">全部状态</button></div>
         <div class="progress-cards">
-          <button class="progress-card" data-status="summary" aria-pressed="false"><span>已解读</span><strong id="progress-summary">0</strong><small>篇 · 已保存论文解读</small></button>
-          <button class="progress-card" data-status="unread" aria-pressed="false"><span>未解读</span><strong id="progress-unread">0</strong><small>篇 · 尚无论文解读</small></button>
-          <button class="progress-card" data-status="terms" aria-pressed="false"><span>已提取术语</span><strong id="progress-terms">0</strong><small>篇 · 已保存术语解释</small></button>
-          <button class="progress-card" data-status="figures" aria-pressed="false"><span>已解析图表</span><strong id="progress-figures">0</strong><small>篇 · 至少一项解析</small></button>
+          <button class="progress-card" data-status="summary" aria-pressed="false"><span>已解读</span><strong id="progress-summary">0</strong></button>
+          <button class="progress-card" data-status="unread" aria-pressed="false"><span>未解读</span><strong id="progress-unread">0</strong></button>
+          <button class="progress-card" data-status="terms" aria-pressed="false"><span>已提取术语</span><strong id="progress-terms">0</strong></button>
+          <button class="progress-card" data-status="figures" aria-pressed="false"><span>已解析图表</span><strong id="progress-figures">0</strong></button>
         </div>
         <div id="summary-progress" class="progress-track" role="progressbar" aria-label="论文解读完成比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="summary-progress-fill"></div></div>
         <p id="progress-description" class="progress-description"></p>
       </section>
       <section class="reading-context" aria-label="阅读目标与排序">
-        <div class="reading-context-head"><h3>我的阅读目标</h3><button id="edit-research" class="text-button">设置研究方向</button></div>
-        <p id="research-summary"></p>
+        <div class="research-target"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-target"></use></svg><div class="research-target-copy"><h3>阅读目标</h3><p id="research-summary"></p></div><button id="toggle-research-summary" class="text-button" aria-expanded="false" aria-controls="research-summary">展开</button><button id="edit-research" class="text-button">编辑目标</button></div>
+        <div class="library-filterbar">
         <nav class="division-groups" aria-label="按分区信息分类">
           <button data-division="all" aria-pressed="true">全部 <strong id="division-all">—</strong></button>
           <button data-division="available" aria-pressed="false">有分区信息 <strong id="division-available">—</strong></button>
           <button data-division="unavailable" aria-pressed="false">暂无分区信息 <strong id="division-unavailable">—</strong></button>
         </nav>
-        <p class="division-description">有中科院 1–4 区或 JCR Q1–Q4 的归为“有分区信息”；其余单列。分类随 Zotero 集合和搜索更新。</p>
         <div class="reading-filters"><label>排序<select id="reading-sort"><option value="recent">Zotero 最近修改</option><option value="priority">夯到拉 · 未评估另列</option></select></label><label>阅读等级<select id="reading-tier"><option value="all">全部等级</option><option>夯</option><option>顶级</option><option>人上人</option><option>NPC</option><option>拉</option><option>待评估</option></select></label></div>
-        <p id="journal-data-status" class="metrics-source"></p>
+        <details class="library-info"><summary>指标说明</summary><div><p class="division-description">有中科院 1–4 区或 JCR Q1–Q4 的归为“有分区信息”；其余单列。分类随 Zotero 集合和搜索更新。</p><p id="journal-data-status" class="metrics-source"></p></div></details>
+        </div>
       </section>
-      <div id="results-info" class="results-info" role="status"></div>
+      <div class="library-results-heading"><h3>文献列表</h3><div id="results-info" class="results-info" role="status"></div></div>
       <div id="items" class="items"></div>
       <nav id="library-pagination" class="library-pagination" aria-label="文献列表分页"></nav>
     </section>
@@ -126,19 +190,19 @@
   </div>
   <div id="analysis-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="analysis-modal-title">
     <div class="analysis-modal-card">
-      <div class="modal-head"><div><div id="analysis-modal-eyebrow" class="eyebrow">PAPER ANALYSIS</div><h2 id="analysis-modal-title">论文解读</h2></div><button id="close-analysis" class="close-button">×</button></div>
+      <div class="modal-head"><div><div id="analysis-modal-eyebrow" class="eyebrow">PAPER ANALYSIS</div><h2 id="analysis-modal-title">论文解读</h2></div><button id="close-analysis" class="close-button" aria-label="关闭解读，取消正在进行的生成">×</button></div>
       <div id="analysis-modal-body" class="analysis-modal-body"></div>
     </div>
   </div>
   <script src="/static/reading.js?v=wording-1"></script>
   <script src="/static/vendor/katex/katex.min.js"></script>
-  <script src="/static/deep-reading.js?v=deep-notes-2"></script>
-  <script src="/static/app.js?v=onboarding-2"></script>
-  <script src="/static/translation.js?v=selection-notes-4"></script>
+  <script src="/static/deep-reading.js?v=reading-views-1"></script>
+  <script src="/static/app.js?v=reading-views-1"></script>
+  <script src="/static/translation.js?v=reading-views-1"></script>
   <script src="/static/pdf-reader.js?v=formula-source-1"></script>
   <script src="/static/term-reading.js?v=term-reading-1"></script>
   <script src="/static/vendor/markdown-it/markdown-it.min.js"></script>
-  <script src="/static/notes.js?v=card-dialogue-1"></script>
+  <script src="/static/notes.js?v=research-pages-1"></script>
   <script src="/static/discovery-export.js?v=discovery-3"></script>
   <script src="/static/discovery.js?v=discovery-3"></script>
   <script src="/static/joint-discovery.js?v=discovery-3"></script>

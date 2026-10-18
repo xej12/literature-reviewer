@@ -103,7 +103,7 @@ function renderProgress(progress, matchingCount) {
   $("#summary-progress").setAttribute("aria-valuenow", String(percent));
   $("#summary-progress").setAttribute("aria-valuetext", `${progress.summary} / ${progress.total} 篇已有论文解读`);
   $("#progress-scope").textContent = `${$("#section-title").textContent}${state.query ? " · 当前搜索结果" : ""}${state.divisionFilter === "all" ? "" : state.divisionFilter === "available" ? " · 有分区信息" : " · 暂无分区信息"} · ${progress.total} 篇`;
-  $("#progress-description").textContent = `${progress.summary} / ${progress.total} 篇已有论文解读（${percent}%） · 点击数字卡片筛选，查看已保存结果不消耗 Token`;
+  $("#progress-description").textContent = `已解读 ${progress.summary} / ${progress.total} 篇 · ${percent}% · 查看已保存结果不消耗 Token`;
   document.querySelectorAll(".progress-card").forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.status === state.progressFilter)));
   $("#clear-progress-filter").setAttribute("aria-pressed", String(state.progressFilter === "all"));
   const totalPages = Math.max(1, Math.ceil(state.items.length / state.pageSize));
@@ -129,17 +129,15 @@ function renderItems() {
   const visibleItems = state.items.slice(start, start + state.pageSize);
   target.innerHTML = visibleItems.map((item) => `
     <button class="item-card ${state.selected?.key === item.key ? "selected" : ""}" data-key="${item.key}">
-      <div class="item-mark">${escapeHtml(initials(item))}</div>
+      <div class="item-mark" aria-hidden="true"><svg class="workspace-icon"><use href="#workspace-icon-book-open"></use></svg></div>
       <div class="item-main">
-        <div class="item-type">${escapeHtml(item.itemType)} ${item.attachments?.some((attachment) => attachmentTypeLabel(attachment) === "PDF") ? "· PDF" : item.attachments?.length ? "· 附件" : ""}</div>
+        <div class="item-topline"><div class="item-type">${escapeHtml(({journalArticle:'期刊论文',conferencePaper:'会议论文',preprint:'预印本',thesis:'学位论文',book:'图书',bookSection:'图书章节',report:'报告',webpage:'网页'})[item.itemType] || item.itemType)} ${item.attachments?.some((attachment) => attachmentTypeLabel(attachment) === "PDF") ? "· PDF" : item.attachments?.length ? "· 附件" : ""}</div><div class="item-priority">${priorityBadge(item)}</div></div>
         <h3>${escapeHtml(item.title)}</h3>
-        <p>${escapeHtml(authorSummary(item.creators))}</p>
+        <p title="${escapeHtml((item.creators || []).join(' · '))}">${escapeHtml(authorSummary(item.creators))}</p>
         <div class="item-meta">${escapeHtml(item.publicationTitle || "")}${item.date ? ` · ${escapeHtml(item.date)}` : ""}</div>
-        ${metricBadges(item)}
-        <div class="item-priority">${priorityBadge(item)}</div>
-        ${analysisBadges(item)}
+        <div class="item-status-row">${metricBadges(item)}${analysisBadges(item)}</div>
       </div>
-      <div class="arrow">›</div>
+      <div class="arrow" aria-hidden="true"><svg class="workspace-icon"><use href="#workspace-icon-chevron-right"></use></svg></div>
     </button>
   `).join("");
   document.querySelectorAll(".item-card").forEach((card) => card.addEventListener("click", () => selectItem(card.dataset.key)));
@@ -162,29 +160,41 @@ function renderDetail(item) {
   const attachmentLabel = openableAttachment ? (openableAttachment === pdf ? "打开 PDF ↗" : "打开附件 ↗") : "";
   detail.innerHTML = `
     <button id="close-detail" class="back-button">← 返回文献列表</button>
-    <div class="detail-top"><span class="pill">${escapeHtml(item.itemType)}</span><span class="key">${escapeHtml(item.key)}</span></div>
+    <header class="paper-hero">
+    <div class="detail-top"><span class="pill">${escapeHtml(({journalArticle:'期刊论文',conferencePaper:'会议论文',preprint:'预印本',thesis:'学位论文',book:'图书',bookSection:'图书章节',report:'报告',webpage:'网页'})[item.itemType] || item.itemType)}</span><span class="key">Zotero · ${escapeHtml(item.key)}</span></div>
     <h2 tabindex="-1">${escapeHtml(item.title)}</h2>
     <div id="paper-authors" class="detail-authors">${escapeHtml(authorSummary(item.creators))}</div>
     ${item.creators?.length > 3 ? `<button id="toggle-authors" class="text-button authors-toggle" aria-expanded="false" aria-controls="paper-authors">展开全部作者</button>` : ""}
     ${openableAttachment ? `<div class="reader-actions"><button id="read-attachment" class="primary-button">${attachmentLabel}</button>${item.url ? `<button id="open-source" class="text-button">打开来源网页 ↗</button>` : ""}</div>` : item.url ? `<div class="reader-actions"><button id="open-source" class="primary-button">打开来源网页 ↗</button></div>` : ""}
+    </header>
+    <section class="paper-reading-tools" aria-label="阅读工具">
+    <div class="paper-tools-heading"><div><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-book-open"></use></svg><h3>开始理解这篇论文</h3></div><span>已保存的解读可直接查看</span></div>
     <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${(item.analysis?.summary || item.analysis?.deepReadingAvailable) ? "查看论文解读" : "论文深度解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.demo ? "示例模式：不会调用模型" : state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
     <div class="translation-tools">${pdf ? `<button id="selection-reader-button" class="secondary-button">划词阅读 PDF</button>` : ""}<button id="term-reading-button" class="secondary-button">术语精讲</button><button id="terminology-button" class="text-button">专业术语表</button><span>选中文字后点「翻译」；术语表命中免费，其他译文按文献保存。</span></div>
-    <div class="paper-notes-entry"><div><strong>我的阅读笔记</strong><p>把自己的理解、原文位置和待核实的问题记在这篇文献下。</p></div><button id="paper-write-note" class="secondary-button">写笔记 / 查看笔记</button></div>
-    <div class="paper-notes-entry"><div><strong>继续探索这项研究</strong><p>找相似研究、前置文献和后续工作，结果保存在这篇文献下。不调用模型。</p></div><button id="paper-discover" class="secondary-button">查找相关文献 →</button></div>
+    </section>
+    <div class="paper-detail-grid"><div class="paper-detail-main">
+    <section class="detail-section paper-abstract"><h3 class="section-label">摘要</h3><p class="abstract">${escapeHtml(item.abstract || "这篇文献没有记录摘要。")}</p></section>
+    <section id="paper-priority" class="paper-priority">${paperPriority(item)}</section>
+    <div class="paper-followups">
+    <div class="paper-notes-entry"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-notebook-pen"></use></svg><div><strong>我的阅读笔记</strong><p>记下自己的理解、原文位置和待核实的问题。</p><button id="paper-write-note" class="text-button">写笔记 / 查看笔记 →</button></div></div>
+    <div class="paper-notes-entry"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-network"></use></svg><div><strong>继续探索</strong><p>查找相似研究与后续工作，结果按文献保存。</p><button id="paper-discover" class="text-button">查找相关文献 →</button></div></div>
+    </div>
+    </div><aside class="paper-detail-meta" aria-label="文献信息">
+    <section class="paper-metadata"><h3 class="section-label">文献信息</h3>
     <dl class="facts">
       ${item.publicationTitle ? `<div><dt>期刊 / 来源</dt><dd>${escapeHtml(item.publicationTitle)}</dd></div>` : ""}
       ${item.date ? `<div><dt>日期</dt><dd>${escapeHtml(item.date)}</dd></div>` : ""}
       ${item.doi ? `<div><dt>DOI</dt><dd>${escapeHtml(item.doi)}</dd></div>` : ""}
       ${item.pages ? `<div><dt>页码</dt><dd>${escapeHtml(item.pages)}</dd></div>` : ""}
     </dl>
+    </section>
     ${journalDetails(item)}
-    <section id="paper-priority" class="paper-priority">${paperPriority(item)}</section>
-    <div class="detail-section"><div class="section-label">摘要</div><p class="abstract">${escapeHtml(item.abstract || "这篇文献没有记录摘要。")}</p></div>
-    <div class="detail-section"><div class="section-label">附件</div>
+    <section class="detail-section paper-attachments"><h3 class="section-label">附件</h3>
       ${item.attachments?.length ? item.attachments.map(a => `<div class="attachment"><span class="pdf-icon">${escapeHtml(attachmentTypeLabel(a))}</span><span class="attachment-name">${escapeHtml(a.filename || "附件")}</span><em>${a.exists ? "已找到" : "未找到"}</em></div>`).join("") : `<p class="muted">暂无本地附件</p>`}
       ${!pdf ? `<p class="attachment-hint">${item.attachments?.some(a => attachmentTypeLabel(a) === "PDF") ? "PDF 文件未在本电脑找到，请在 Zotero 中确认附件已下载。" : "此条目没有 PDF 附件。网页快照和 PDF 是不同文件，可先打开来源网页阅读；在 Zotero 添加 PDF 后刷新即可。"}</p>` : ""}
-    </div>
-    ${pdf ? `<div class="next-feature"><span>✦</span><div><strong>逐页理解</strong><br><small>可框选图表单独解析，结果会保存在当前文献下。</small></div></div>` : ""}
+    </section>
+    ${pdf ? `<div class="paper-reading-hint">在图表解析中可以框选图表，解析结果会保存在这篇文献下。</div>` : ""}
+    </aside></div>
   `;
   $("#close-detail").addEventListener("click", closeDetail);
   wirePaperPriority(item);
@@ -282,6 +292,7 @@ function openAnalysis(title, eyebrow = "PAPER ANALYSIS") {
   $("#analysis-modal").classList.toggle("deep-modal", eyebrow === "DEEP READING");
   $("#analysis-modal-body").innerHTML = `<div class="analysis-loading">正在生成，请稍候…</div>`;
   $("#analysis-modal").classList.remove("hidden");
+  document.body.classList.add('analysis-reading');
 }
 
 function closeAnalysis() {
@@ -290,6 +301,7 @@ function closeAnalysis() {
   $("#analysis-modal").classList.add("hidden");
   $("#analysis-modal").classList.remove("figure-modal");
   $("#analysis-modal").classList.remove("deep-modal");
+  document.body.classList.remove('analysis-reading');
 }
 
 async function saveSettings() {
@@ -573,7 +585,7 @@ async function analyzeFigure(item, pdf) {
       <div class="figure-workspace">
         <section class="figure-pane figure-pdf-pane">
           <div class="figure-pane-title"><span>PDF 页面</span><span id="figure-page-status"></span></div>
-          <div class="figure-controls"><label>页码 <input id="figure-page" type="number" min="1" max="${pageCount}" value="${page}" /></label><div class="figure-zoom-controls"><button id="figure-zoom-out" class="zoom-button" title="缩小">−</button><span id="figure-zoom-label">100%</span><button id="figure-zoom-in" class="zoom-button" title="放大">+</button><button id="figure-zoom-reset" class="secondary-button">适应宽度</button><button id="figure-open-image" class="secondary-button">打开原图</button></div></div>
+          <div class="figure-controls"><label>页码 <input id="figure-page" aria-label="图表 PDF 页码" type="number" min="1" max="${pageCount}" value="${page}" /></label><div class="figure-zoom-controls"><button id="figure-zoom-out" class="zoom-button" aria-label="缩小 PDF 页面" title="缩小">−</button><span id="figure-zoom-label">100%</span><button id="figure-zoom-in" class="zoom-button" aria-label="放大 PDF 页面" title="放大">+</button><button id="figure-zoom-reset" class="secondary-button">适应宽度</button><button id="figure-open-image" class="secondary-button">打开原图</button></div></div>
           <div class="crop-controls"><button id="figure-crop" class="secondary-button" aria-pressed="false">框选图表</button><button id="figure-clear-crop" class="secondary-button">取消选区</button><span>请把图题、坐标轴和图例一起框入</span></div>
           <div class="figure-preview-wrap"><button id="figure-prev-page" class="figure-side-button left" aria-label="上一页">‹</button><div class="figure-preview-viewport"><div id="figure-stage"><img id="figure-preview" class="figure-preview" draggable="false" alt="PDF 页面预览" /><div id="figure-selection" hidden></div></div></div><button id="figure-next-page" class="figure-side-button right" aria-label="下一页">›</button></div>
         </section>
@@ -749,6 +761,12 @@ document.querySelectorAll(".progress-card").forEach((button) => button.addEventL
 }));
 $("#clear-progress-filter").addEventListener("click", () => { state.progressFilter = "all"; loadItems(); });
 $("#refresh-library").addEventListener("click", () => loadItems());
+$("#toggle-research-summary").addEventListener("click", event => {
+  const expanded = event.currentTarget.getAttribute('aria-expanded') !== 'true';
+  event.currentTarget.setAttribute('aria-expanded', String(expanded));
+  event.currentTarget.textContent = expanded ? '收起' : '展开';
+  event.currentTarget.closest('.research-target').classList.toggle('expanded', expanded);
+});
 function refreshIfVisible() {
   if (!document.hidden && !state.libraryLoading && Date.now() - state.lastSync > 5000) loadItems({ quiet: true });
 }

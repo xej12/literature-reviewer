@@ -131,10 +131,10 @@ function deepPageRanges(pages = []) {
 
 function deepCoverage(source) {
   if (!source) return "";
-  return `<div class="deep-coverage"><strong>正文材料：${source.readablePages.length} / ${source.pageCount} 页可提取文字</strong>
+  return `<details class="deep-coverage"><summary><strong>正文材料：${source.readablePages.length} / ${source.pageCount} 页可提取文字</strong><span>${source.partial || source.emptyPages.length ? '材料有缺失 · 查看范围' : '查看阅读范围'}</span></summary><div class="deep-coverage-content">
     <span>${source.partial ? `本章使用部分正文片段，涉及第 ${deepPageRanges(source.includedPages)} 页；不保证覆盖全文。` : "本章材料包含所有已提取正文；公式符号和页面排版仍需结合 PDF 核对。"}</span>
     ${source.termFound !== undefined ? `<span class="${source.termFound ? '' : 'deep-warning'}">${source.termFound ? `术语文字匹配涉及第 ${deepPageRanges(source.matchedPages)} 页，本次材料含其中第 ${deepPageRanges(source.includedMatchedPages)} 页；词面匹配仅供定位。` : '未在提取文字中直接检索到该术语，可能有缩写、断词或提取问题；讲解必须区分背景知识与本文事实。'}</span>` : ''}
-    ${source.emptyPages.length ? `<span class="deep-warning">第 ${deepPageRanges(source.emptyPages)} 页未提取出文字，可能包含图像或扫描内容。</span>` : ""}</div>`;
+    ${source.emptyPages.length ? `<span class="deep-warning">第 ${deepPageRanges(source.emptyPages)} 页未提取出文字，可能包含图像或扫描内容。</span>` : ""}</div></details>`;
 }
 
 function deepSources(block, source) {
@@ -235,13 +235,13 @@ function paintDeepReading(view) {
   const disabled = Boolean(view.pending) || view.archive >= 0 || view.revision >= 0 || !data.source || (isTerm && !chapterInfo);
   const archived = view.archive >= 0;
   panel.innerHTML = `<div class="deep-layout${isTerm ? ' term-reading-layout' : ''}"><nav class="deep-nav" aria-label="${isTerm ? '专业术语' : '论文解读章节'}">
-    <div class="deep-nav-title">${isTerm ? '逐个讲透专业术语' : '按章节理解论文'}</div><p>已保存 ${completed} / ${data.chapters.length} ${unit}</p>
+    <div class="deep-nav-title">${isTerm ? '逐个讲透专业术语' : '按章节理解论文'}</div><p>已保存 ${completed} / ${data.chapters.length} ${unit}</p><div class="deep-progress" aria-hidden="true"><span style="width:${Math.min(100,completed / Math.max(1,data.chapters.length)*100)}%"></span></div>
     ${isTerm ? `<form id="term-focus-form" class="term-focus-form"><label for="term-focus">输入想理解的术语</label><input id="term-focus" maxlength="150" placeholder="如 coronagraph" required /><button class="secondary-button" ${view.pending ? 'disabled' : ''}>打开术语（免费）</button></form>` : ''}
     ${data.chapters.map((c, i) => `<button class="deep-chapter" data-section="${c.id}" aria-current="${view.section === c.id ? "page" : "false"}"><span>${String(i + 1).padStart(2, "0")} ${escapeHtml(c.title)}</span><small>${view.pending === c.id ? "正在处理…" : reading?.drafts?.[c.id] ? reading.drafts[c.id].content?.trim() ? "答复已保存 · 待整理" : "未生成正文" : reading?.sections?.[c.id] ? "已保存" : "按需生成"}</small></button>`).join("")}
     ${legacy ? `<button class="deep-chapter" data-section="legacy" aria-current="${isLegacy ? "page" : "false"}"><span>旧版解读</span><small>原结果保留</small></button>` : ""}
     ${versions.length ? `<label class="deep-version-label" for="deep-version">材料版本</label><select id="deep-version"><option value="-1">当前 PDF</option>${versions.map((v, i) => `<option value="${i}" ${view.archive === i ? "selected" : ""}>已存版本 ${i + 1}${v.fingerprint === data.reading?.fingerprint ? " · 当前材料" : " · 旧材料"}</option>`).join("")}</select>` : ""}
     <p class="deep-free-note">${isTerm ? '打开和切换术语免费。每个术语单独生成、保存；原有短定义仍保留。' : '打开和切换章节免费。只有点击生成时才调用模型；结果按文献保存。'}</p>
-    </nav><main class="deep-document" tabindex="-1"><div class="deep-paper-title">${escapeHtml(view.item.title)}</div>
+    </nav><main class="deep-document" tabindex="-1"><div class="deep-article"><div class="deep-paper-title">${escapeHtml(view.item.title)}</div>
     ${view.error ? `<div role="alert" class="analysis-error">${escapeHtml(view.error)}</div>` : ""}
     ${isLegacy ? `<div class="deep-chapter-heading"><h3>旧版论文解读</h3><span>已保存 · 不消耗 Token</span></div>${Object.entries({research_question: "研究问题", methods: "方法与数据", findings: "主要发现", limitations: "局限性"}).map(([key, title]) => `<section class="deep-block"><h4>${title}</h4><div class="deep-prose">${escapeHtml(legacy?.[key] || "原文未说明")}</div></section>`).join("")}` : `
     <div class="deep-chapter-heading"><h3>${escapeHtml(chapterInfo?.title || (isTerm ? '选一个术语开始' : '论文解读'))}</h3><span>${archived ? "已存版本 · 只读" : noAnswer ? "未生成正文" : draft ? "答复已保存 · 待整理" : chapter ? "已保存 · 打开免费" : "尚未生成"}</span></div>
@@ -256,7 +256,7 @@ function paintDeepReading(view) {
       ${(chapter.notices || []).map(n => `<p class="deep-warning">${escapeHtml(n)}</p>`).join("")}
       ${(chapter.blocks || []).map((b, i) => `<section class="deep-block"><div class="deep-block-heading"><h4>${i + 1}. ${escapeHtml(b.title)}</h4><div class="deep-block-meta"><span class="deep-basis ${b.basis}">${escapeHtml(basisLabels[b.basis] || "待核对")}${b.unverified ? " · 定位待核对" : ""}</span><button type="button" class="text-button deep-save-note" data-block-index="${i}">保存到笔记</button></div></div><div class="deep-prose">${renderDeepText(b.body, b, source)}</div><div class="deep-note-capture hidden"></div>${deepSources(b, source)}</section>`).join("")}
       <p class="deep-saved">已保存于 ${escapeHtml(chapter.generatedAt || "本电脑")} · 模型 ${escapeHtml(chapter.model || "未记录")}</p>` : draft ? "" : `<div class="deep-empty"><h4>${escapeHtml(chapterInfo?.title || (isTerm ? '术语精讲' : '本章'))}会解释什么？</h4><p>${escapeHtml(isTerm ? '专业译名与含义 → 必要基础 → 工作机制 → 在本文中的作用 → 教学例子与必要公式 → 易混淆概念与局限 → 自检题和参考答案。论文事实与补充教学分开，提供可定位的原文依据。' : deepChapterDescriptions[view.section] || "")}</p><p>${isTerm ? '输入一个术语或从左侧选择，再点“讲透这个术语”才会调用模型。' : '点击上方“生成本章”开始。已有的其他章节和旧版解读会保留。'}</p></div>`}`}
-    </main></div>`;
+    </div></main></div>`;
   panel.querySelectorAll(".deep-chapter").forEach(button => button.onclick = () => {
     view.section = button.dataset.section; view.revision = -1; view.error = ""; paintDeepReading(view);
   });

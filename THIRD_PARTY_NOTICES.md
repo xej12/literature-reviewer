@@ -12,6 +12,7 @@
 | PDF.js | [pdfjs-dist 5.4.149](https://www.npmjs.com/package/pdfjs-dist/v/5.4.149) / [源码](https://github.com/mozilla/pdf.js) | 原始版式 PDF 阅读、可选择文字层 | [web/vendor/pdfjs/LICENSE](web/vendor/pdfjs/LICENSE)（Apache-2.0） |
 | PDF.js 附带资源 | 随上述分发版本 | 字体、字符映射、色彩及图像解码 | 见下方资源许可 |
 | markdown-it | [15.0.3](https://www.npmjs.com/package/markdown-it/v/15.0.3) / [源码](https://github.com/markdown-it/markdown-it) | 本地笔记 Markdown 预览 | [web/vendor/markdown-it/LICENSE](web/vendor/markdown-it/LICENSE)（MIT） |
+| Lucide（精选 SVG） | [固定源码提交 1ef60af](https://github.com/lucide-icons/lucide/tree/1ef60af944de207e0d5176905a0759ba12e6ee8d) | 工作台导航及文献列表图标，作为 SVG sprite 内嵌于页面 | [web/vendor/lucide/LICENSE](web/vendor/lucide/LICENSE)（ISC，部分图标沿用 Feather MIT） |
 
 PDF.js 资源原许可保留于：
 
@@ -40,6 +41,8 @@ Python 依赖由 [requirements.txt](requirements.txt) 声明：
 PDF、Zotero 元数据、个人术语表和模型生成记录由使用者提供或生成，不作为项目自带开放数据分发。能在本机阅读一篇论文，不自动代表有权把全文公开上传。
 
 ## 设计与工作流参考
+
+- [Tabler](https://github.com/tabler/tabler)（MIT）、[shadcn/ui](https://github.com/shadcn-ui/ui)（MIT）：参考工作台布局、组件层级、间距与导航状态；当前工作台样式独立编写，未引入完整 Bootstrap/React 框架。[Radix Colors](https://github.com/radix-ui/colors)（MIT）用于配色系统调研，当前颜色由本项目在 CSS 变量中定义。
 
 - [Local Citation Network](https://github.com/LocalCitationNetwork/LocalCitationNetwork.github.io)、[semanticscholar](https://github.com/danielnsilva/semanticscholar)、[PyAlex](https://github.com/J535D165/pyalex)、[Zotero Research Assistant](https://github.com/qiobn/zotero-research-assistant)、[Inciteful Zotero Plugin](https://github.com/inciteful-xyz/inciteful-zotero-plugin)：文献发现与引用关系的调研参考。当前独立实现公开 API 适配器，没有复制这些项目的源码或安装其完整系统，见 [调研与实现范围](references/discovery-research.md)。
 

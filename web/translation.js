@@ -157,12 +157,8 @@ function captureTranslationSelection() {
   const rect = range.getBoundingClientRect();
   selectedTranslation.rect = rect;
   button.hidden = false;
-  button.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - button.offsetWidth - 8))}px`;
-  button.style.top = `${Math.max(8, Math.min(rect.bottom + 7, innerHeight - button.offsetHeight - 8))}px`;
   const saveButton = $('#selection-save-note');
   saveButton.hidden = false;
-  saveButton.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - saveButton.offsetWidth - 8))}px`;
-  saveButton.style.top = `${Math.max(8, Math.min(rect.bottom + button.offsetHeight + 14, innerHeight - saveButton.offsetHeight - 8))}px`;
   const cardButton=$('#selection-save-card');
   cardButton.hidden=false;
   cardSaveInFlight = false;
@@ -171,10 +167,18 @@ function captureTranslationSelection() {
   const cardStatus = $('#selection-card-status');
   cardStatus.hidden = true;
   cardStatus.className = 'selection-card-status';
-  cardStatus.style.left = `${Math.max(8, Math.min(rect.left, innerWidth - 290))}px`;
-  cardStatus.style.top = `${Math.max(8, Math.min(rect.bottom + 3 * (button.offsetHeight + 7), innerHeight - 52))}px`;
-  cardButton.style.left=`${Math.max(8, Math.min(rect.left, innerWidth - cardButton.offsetWidth - 8))}px`;
-  cardButton.style.top=`${Math.max(8, Math.min(rect.bottom + 2 * (button.offsetHeight + 7), innerHeight - cardButton.offsetHeight - 8))}px`;
+  // Position the three actions as a group; clamping them individually overlaps
+  // the buttons when the selection is close to the bottom of the viewport.
+  const actions=[button,saveButton,cardButton],gap=7;
+  const height=actions.reduce((total,action)=>total+action.offsetHeight,0)+gap*(actions.length-1);
+  const width=Math.max(...actions.map(action=>action.offsetWidth));
+  const left=Math.max(8,Math.min(rect.left,innerWidth-width-8));
+  const preferredTop=rect.bottom+gap+height<=innerHeight-8 ? rect.bottom+gap : rect.top-height-gap;
+  let top=Math.max(8,Math.min(preferredTop,innerHeight-height-8));
+  for(const action of actions){action.style.left=`${left}px`;action.style.top=`${top}px`;top+=action.offsetHeight+gap;}
+  cardStatus.style.left = `${Math.max(8, Math.min(left, innerWidth - 290))}px`;
+  const statusTop=top+52<=innerHeight-8 ? top : parseFloat(button.style.top)-59;
+  cardStatus.style.top = `${Math.max(8,Math.min(statusTop,innerHeight-60))}px`;
 }
 
 async function runSelectionTranslation(selection = selectedTranslation, force = false) {

@@ -76,10 +76,10 @@ function paintCardsWorkspace(cards=[]) {
   const target=$('#cards-grid');
   if(!target)return;
   if(!cards.length) {
-    target.innerHTML='<div class="cards-empty"><div class="cards-empty-icon">▧</div><h3>还没有阅读卡片</h3><p>在论文解读中划选不熟悉的内容，点击“存入卡片”，它会出现在这里。</p></div>';
+    target.innerHTML='<div class="cards-empty"><div class="cards-empty-icon"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-layers"></use></svg></div><h3>把不懂的内容，留成一张卡片</h3><p>在论文解读中划选文字，点击“存入卡片”。之后可以在这里围绕它提问，写下自己的总结。</p></div>';
     return;
   }
-  target.innerHTML=cards.map(card=>`<article class="reading-card" data-card-id="${card.id}"><button class="reading-card-main" type="button"><span class="reading-card-label">阅读摘录</span><h3>${escapeHtml(card.title || '未命名卡片')}</h3>${card.summary ? `<div class="reading-card-summary"><strong>当前总结</strong><p>${escapeHtml(card.summary)}</p></div>` : `<p>${escapeHtml(card.excerpt || '')}</p>`}<footer><span>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</span><time>${escapeHtml(cardDate(card.updatedAt || card.createdAt))}</time></footer></button><button class="reading-card-delete text-button" type="button" aria-label="删除卡片">删除</button></article>`).join('');
+  target.innerHTML=cards.map(card=>`<article class="reading-card" data-card-id="${card.id}"><button class="reading-card-main" type="button"><span class="reading-card-label"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-layers"></use></svg>${card.summary ? '已整理总结' : '待理解的摘录'}</span><h3>${escapeHtml(card.title || '未命名卡片')}</h3>${card.summary ? `<div class="reading-card-summary"><strong>我的总结</strong><p>${escapeHtml(card.summary)}</p></div>` : `<p>${escapeHtml(card.excerpt || '')}</p>`}<footer><span>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</span><time>${escapeHtml(cardDate(card.updatedAt || card.createdAt))}</time></footer><span class="reading-card-open">打开卡片 <svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-chevron-right"></use></svg></span></button><button class="reading-card-delete text-button" type="button" aria-label="删除卡片">删除</button></article>`).join('');
   target.querySelectorAll('.reading-card-main').forEach(button=>button.onclick=()=>openCardPreview(button.closest('.reading-card').dataset.cardId));
   target.querySelectorAll('.reading-card-delete').forEach(button=>button.onclick=event=>{event.stopPropagation();deleteReadingCard(button.closest('.reading-card').dataset.cardId);});
 }
@@ -95,8 +95,8 @@ async function refreshCardsWorkspace() {
     paintCardsWorkspace(notebook.cards);
   } catch(error) { cardsMessage(`读取卡片失败：${error.message}`,true); }
 }
-function cardDetailStatus(message='',failed=false) {
-  const el=$('#card-detail-status'); if(!el)return;
+function cardDetailStatus(message='',failed=false,area='question') {
+  const el=$(area==='summary'?'#card-summary-status':'#card-detail-status'); if(!el)return;
   el.textContent=message; el.classList.toggle('failed',failed); el.classList.toggle('hidden',!message);
 }
 function renderCardConversation(card) {
@@ -107,7 +107,7 @@ function renderCardConversation(card) {
 function renderCardDetail(card) {
   const view=$('#card-detail-view'); if(!view)return;
   $('#cards-grid').classList.add('hidden'); view.classList.remove('hidden');
-  view.innerHTML=`<button id="card-detail-back" class="back-button">← 返回我的卡片</button><div class="card-detail-heading"><div><div class="eyebrow">READING CARD</div><h2>${escapeHtml(card.title || '未命名卡片')}</h2><p>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</p></div><button id="card-detail-delete" class="text-button card-delete-action">删除卡片</button></div><section class="card-original"><div class="card-section-label">保存的原文</div><blockquote>${escapeHtml(card.content)}</blockquote>${card.source?`<small>来源：${escapeHtml(card.source)}</small>`:''}</section><section class="card-qa"><div class="card-section-heading"><div><div class="card-section-label">围绕卡片提问</div><p>只有点击“发送问题”才会调用模型。</p></div></div><div id="card-conversation" class="card-conversation"></div><form id="card-question-form" class="card-question-form"><textarea id="card-question" maxlength="4000" rows="3" placeholder="例如：这里的 coronagraph 在本文中具体承担什么作用？"></textarea><button class="primary-button" type="submit">发送问题</button></form><p id="card-detail-status" class="card-detail-status hidden" role="status"></p></section><section class="card-summary-editor"><div class="card-section-heading"><div><div class="card-section-label">显示在卡片表面的总结</div><p>总结需要你主动点击生成，也可以直接修改后保存。</p></div><div class="card-summary-actions"><button id="card-generate-summary" class="secondary-button" type="button">总结当前内容</button><button id="card-save-summary" class="text-button" type="button">保存修改</button></div></div><textarea id="card-summary-input" maxlength="20000" rows="6" placeholder="尚未生成总结；你也可以直接填写。">${escapeHtml(card.summary || '')}</textarea></section>`;
+  view.innerHTML=`<button id="card-detail-back" class="back-button">← 返回我的卡片</button><div class="card-detail-heading"><div><div class="eyebrow">READING CARD</div><h2>${escapeHtml(card.title || '未命名卡片')}</h2><p>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</p></div><button id="card-detail-delete" class="text-button card-delete-action">删除卡片</button></div><section class="card-original"><div class="card-section-label">保存的原文</div><blockquote>${escapeHtml(card.content)}</blockquote>${card.source?`<small>来源：${escapeHtml(card.source)}</small>`:''}</section><section class="card-qa"><div class="card-section-heading"><div><div class="card-section-label">围绕卡片提问</div><p>只有点击“发送问题”才会调用模型。</p></div></div><div id="card-conversation" class="card-conversation"></div><form id="card-question-form" class="card-question-form"><textarea id="card-question" aria-label="围绕卡片提出问题" maxlength="4000" rows="3" placeholder="例如：这里的 coronagraph 在本文中具体承担什么作用？"></textarea><button class="primary-button" type="submit">发送问题</button></form><p id="card-detail-status" class="card-detail-status hidden" role="status"></p></section><section class="card-summary-editor"><div class="card-section-heading"><div><div class="card-section-label">显示在卡片表面的总结</div><p>总结需要你主动点击生成，也可以直接修改后保存。</p></div><div class="card-summary-actions"><button id="card-generate-summary" class="secondary-button" type="button">总结当前内容</button><button id="card-save-summary" class="text-button" type="button">保存修改</button></div></div><textarea id="card-summary-input" aria-label="卡片总结，可自行修改" maxlength="20000" rows="6" placeholder="尚未生成总结；你也可以直接填写。">${escapeHtml(card.summary || '')}</textarea><p id="card-summary-status" class="card-detail-status hidden" role="status"></p></section>`;
   renderCardConversation(card);
   $('#card-detail-back').onclick=()=>navigateCards();
   $('#card-detail-delete').onclick=()=>deleteReadingCard(card.id,true);
@@ -128,21 +128,21 @@ async function submitCardQuestion(cardId) {
 }
 async function summarizeReadingCard(cardId) {
   const button=$('#card-generate-summary'); if(!button)return;
-  button.disabled=true; cardDetailStatus('正在总结当前内容，模型调用完成前请勿关闭页面。');
+  button.disabled=true; cardDetailStatus('正在总结当前内容，模型调用完成前请勿关闭页面。',false,'summary');
   try {
     const result=await postJson(`/api/cards/${cardId}`,{action:'summarize'});
-    notebook.cards=notebook.cards.map(card=>card.id===cardId?result.card:card); $('#card-summary-input').value=result.summary || ''; cardDetailStatus('总结已保存，可继续手动修改。');
+    notebook.cards=notebook.cards.map(card=>card.id===cardId?result.card:card); $('#card-summary-input').value=result.summary || ''; cardDetailStatus('总结已保存，可继续手动修改。',false,'summary');
     paintCardsWorkspace(notebook.cards);
-  } catch(error) { cardDetailStatus(`总结失败：${error.message}`,true); }
+  } catch(error) { cardDetailStatus(`总结失败：${error.message}`,true,'summary'); }
   finally { button.disabled=false; }
 }
 async function saveReadingCardSummary(cardId) {
   const input=$('#card-summary-input'), button=$('#card-save-summary'); if(!input || !button)return;
-  button.disabled=true; cardDetailStatus('正在保存修改…');
+  button.disabled=true; cardDetailStatus('正在保存修改…',false,'summary');
   try {
     const result=await postJson(`/api/cards/${cardId}`,{summary:input.value});
-    notebook.cards=notebook.cards.map(card=>card.id===cardId?result:card); input.value=result.summary || ''; cardDetailStatus('总结修改已保存。'); paintCardsWorkspace(notebook.cards);
-  } catch(error) { cardDetailStatus(`保存失败：${error.message}`,true); }
+    notebook.cards=notebook.cards.map(card=>card.id===cardId?result:card); input.value=result.summary || ''; cardDetailStatus('总结修改已保存。',false,'summary'); paintCardsWorkspace(notebook.cards);
+  } catch(error) { cardDetailStatus(`保存失败：${error.message}`,true,'summary'); }
   finally { button.disabled=false; }
 }
 async function deleteReadingCard(cardId, fromDetail=false) {
@@ -168,7 +168,7 @@ async function refreshNoteList() {
   if(result.unreadable)noteMessage(`${result.unreadable} 个笔记文件无法读取，已保留原文件，请检查备份。`);
 }
 function templatePicker() {
-  $('#note-editor-panel').innerHTML=`<div class="note-start"><span class="note-start-mark">✎</span><h3>新建一篇空白笔记</h3><p>${notebook.paper ? `关联文献：${escapeHtml(notebook.paper.title)}` : '直接写下你的理解、术语、疑问和下一步。'}</p><div class="note-template-grid"><button class="note-template" data-template="blank"><strong>空白笔记</strong><span>不预设结构，打开后直接填写。</span><small>开始记录 →</small></button></div><p class="note-local-hint">笔记保存在本电脑 · 不调用模型 · 不修改 Zotero 原库</p></div>`;
+  $('#note-editor-panel').innerHTML=`<div class="note-start"><span class="note-start-mark"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-notebook-pen"></use></svg></span><h3>给自己的理解，留一页空白</h3><p>${notebook.paper ? `关联文献：${escapeHtml(notebook.paper.title)}` : '记录一个想法、一处疑问，或刚刚读懂的内容。'}</p><button class="primary-button note-create-blank" data-template="blank">新建空白笔记 →</button><p class="note-local-hint">自动保存到本电脑 · 支持 Markdown / HTML 导出</p></div>`;
   $('#note-editor-panel').querySelectorAll('[data-template]').forEach(button=>button.onclick=async()=>{
     $('#note-editor-panel').querySelectorAll('button').forEach(b=>b.disabled=true);
     try { const note=await postJson('/api/notes',{template:button.dataset.template,itemKey:notebook.paper?.key || ''}); refreshNoteSidebar().catch(()=>{}); navigateNotes(noteHash(note.id)); }
@@ -249,11 +249,11 @@ async function deleteCurrentNote() {
 }
 function renderNoteEditor(current) {
   const note=current.note;
-  $('#note-editor-panel').innerHTML=`<div class="note-editor-top"><span class="note-template-label">${escapeHtml(notebook.templates.find(t=>t.id===note.template)?.name || '笔记')}</span><div class="note-export-actions"><label class="sr-only" for="note-export-format">导出格式</label><select id="note-export-format"><option value="md">Markdown (.md)</option><option value="html">网页 (.html)</option></select><button id="note-export" class="secondary-button">导出</button><button id="note-print" class="text-button">打印 / 存为 PDF</button></div></div><label class="sr-only" for="note-title">笔记标题</label><input id="note-title" class="note-title" maxlength="200" placeholder="给这篇笔记起个标题" />${note.paper ? `<div class="note-paper-link"><span>关联文献：${escapeHtml(note.paper.title)}</span><button id="note-open-paper" class="text-button">打开文献 ↗</button></div>` : '<p class="note-unlinked">独立笔记 · 也可以从文献详情新建关联笔记</p>'}<div class="note-save-row"><span id="note-save-status" role="status"></span><button id="note-save" class="text-button">立即保存</button><button id="note-reload" class="text-button">载入已存版本</button></div><div class="note-format-bar" aria-label="插入格式"><button data-syntax="heading">标题</button><button data-syntax="bold">粗体</button><button data-syntax="list">列表</button><button data-syntax="quote">引文</button><button data-syntax="formula">公式</button><div class="note-view-tabs" role="group" aria-label="编辑视图"><button data-view="edit" aria-pressed="true">编辑</button><button data-view="split" aria-pressed="false">对照</button><button data-view="preview" aria-pressed="false">预览</button></div></div><div id="note-writing" class="note-writing" data-view="edit"><label class="sr-only" for="note-body">笔记正文（Markdown）</label><textarea id="note-body" maxlength="200000" spellcheck="false" placeholder="写下你自己的理解…"></textarea><article id="note-preview" class="note-prose" aria-label="笔记预览"></article></div><div class="note-editor-footer"><span id="note-word-count"></span><span>自动保存 · Ctrl / ⌘ + S 保存 · 不调用模型</span></div>`;
+  $('#note-editor-panel').innerHTML=`<div class="note-editor-top"><span class="note-template-label"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-notebook-pen"></use></svg> 我的笔记</span><div class="note-export-actions"><label class="sr-only" for="note-export-format">导出格式</label><select id="note-export-format"><option value="md">Markdown (.md)</option><option value="html">网页 (.html)</option></select><button id="note-export" class="secondary-button">导出</button><button id="note-print" class="text-button">打印 / 存为 PDF</button></div></div><label class="sr-only" for="note-title">笔记标题</label><input id="note-title" class="note-title" maxlength="200" placeholder="给这篇笔记起个标题" />${note.paper ? `<div class="note-paper-link"><span>关联文献：${escapeHtml(note.paper.title)}</span><button id="note-open-paper" class="text-button">打开文献 ↗</button></div>` : '<p class="note-unlinked">独立笔记 · 也可以从文献详情新建关联笔记</p>'}<div class="note-save-row"><span id="note-save-status" role="status"></span><button id="note-save" class="text-button">立即保存</button><button id="note-reload" class="text-button">载入已存版本</button></div><div class="note-format-bar" aria-label="插入格式"><button data-syntax="heading">标题</button><button data-syntax="bold">粗体</button><button data-syntax="list">列表</button><button data-syntax="quote">引文</button><button data-syntax="formula">公式</button><div class="note-view-tabs" role="group" aria-label="编辑视图"><button data-view="edit" aria-pressed="true">编辑</button><button data-view="split" aria-pressed="false">对照</button><button data-view="preview" aria-pressed="false">预览</button></div></div><div id="note-writing" class="note-writing" data-view="edit"><label class="sr-only" for="note-body">笔记正文（Markdown）</label><textarea id="note-body" maxlength="200000" spellcheck="false" placeholder="写下你自己的理解…"></textarea><article id="note-preview" class="note-prose" aria-label="笔记预览"></article></div><div class="note-editor-footer"><span id="note-word-count"></span><span>自动保存 · Ctrl / ⌘ + S 保存 · 不调用模型</span></div>`;
   $('#note-title').value=note.title;$('#note-body').value=note.body;updateNotePreview();
   $('.note-export-actions').insertAdjacentHTML('beforeend','<button id="note-delete" class="text-button note-delete">删除笔记</button>');
   $('#note-delete').onclick=deleteCurrentNote;
-  $('#note-editor-panel').insertAdjacentHTML('beforeend','<details class="note-format-help"><summary>格式与导出说明</summary><p>用上方按钮插入标题、粗体、列表和引文，点“预览”查看排版。行内公式用 $...$，独立公式用两行 $$ 包住。</p><p>Markdown 适合继续编辑；HTML 可以离线打开。点击“打印 / 存为 PDF”，在浏览器打印窗口选择“另存为 PDF”。本版暂不支持图片附件与自定义模板；Markdown 图片引用不会自动加载。</p></details>');
+  $('#note-editor-panel').insertAdjacentHTML('beforeend','<details class="note-format-help"><summary>格式与导出说明</summary><p>用上方按钮插入标题、粗体、列表和引文，点“预览”查看排版。行内公式用 $...$，独立公式用两行 $$ 包住。</p><p>Markdown 适合继续编辑；HTML 可以离线打开。点击“打印 / 存为 PDF”，在浏览器打印窗口选择“另存为 PDF”。Markdown 图片引用不会自动加载，可用文字和链接记录图片来源。</p></details>');
   noteStatus(current.dirty?'已恢复浏览器草稿 · 等待保存':`已保存到本电脑 · ${noteTime(note.updatedAt)}`);
   $('#note-title').addEventListener('input',changeNote);$('#note-body').addEventListener('input',changeNote);
   $('#note-save').onclick=()=>saveNote();$('#note-export').onclick=downloadNote;
