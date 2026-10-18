@@ -143,6 +143,7 @@ function renderDetail(item) {
     <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${(item.analysis?.summary || item.analysis?.deepReadingAvailable) ? "查看论文解读" : "论文深度解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
     <div class="translation-tools">${pdf ? `<button id="selection-reader-button" class="secondary-button">划词阅读 PDF</button>` : ""}<button id="term-reading-button" class="secondary-button">术语精讲</button><button id="terminology-button" class="text-button">专业术语表</button><span>选中文字后点「翻译」；术语表命中免费，其他译文按文献保存。</span></div>
     <div class="paper-notes-entry"><div><strong>我的阅读笔记</strong><p>把自己的理解、原文位置和待核实的问题记在这篇文献下。</p></div><button id="paper-write-note" class="secondary-button">写笔记 / 查看笔记</button></div>
+    <div class="paper-notes-entry"><div><strong>继续探索这项研究</strong><p>找相似研究、前置文献和后续工作，结果保存在这篇文献下。不调用模型。</p></div><button id="paper-discover" class="secondary-button">查找相关文献 →</button></div>
     <dl class="facts">
       ${item.publicationTitle ? `<div><dt>期刊 / 来源</dt><dd>${escapeHtml(item.publicationTitle)}</dd></div>` : ""}
       ${item.date ? `<div><dt>日期</dt><dd>${escapeHtml(item.date)}</dd></div>` : ""}
@@ -161,6 +162,7 @@ function renderDetail(item) {
   $("#close-detail").addEventListener("click", closeDetail);
   wirePaperPriority(item);
   $('#paper-write-note').addEventListener('click', () => window.notesWorkspace.forPaper(item));
+  $('#paper-discover').addEventListener('click', () => window.discoveryWorkspace.open(item.key));
   $("#toggle-authors")?.addEventListener("click", (event) => {
     const authors = $("#paper-authors");
     const expanded = authors.classList.toggle("expanded");
@@ -535,15 +537,34 @@ async function applyRoute() {
   }
   const request = ++state.detailRequest;
   const match = location.hash.match(/^#\/items\/([A-Z0-9]+)$/);
+  const discoveryRoute = location.hash.match(/^#\/items\/([A-Z0-9]+)\/discover$/);
+  const jointRoute = location.hash.match(/^#\/discover(?:\/([a-f0-9]{64}))?(?:\?seed=([A-Z0-9]+))?$/);
   const notesRoute = location.hash.startsWith('#/notes');
   const detail = $("#detail");
-  $("#library").classList.toggle("hidden", Boolean(match));
+  $("#library").classList.toggle("hidden", Boolean(match || discoveryRoute || jointRoute));
   detail.classList.toggle("hidden", !match);
+  $('#discovery-workspace').classList.toggle('hidden', !discoveryRoute);
+  $('#joint-workspace').classList.toggle('hidden', !jointRoute);
   $('#library-content').classList.toggle('hidden', notesRoute);
   $('#notes-workspace').classList.toggle('hidden', !notesRoute);
   $('#nav-notes').classList.toggle('active', notesRoute);
-  $('#nav-library').classList.toggle('active', !notesRoute);
+  $('#nav-library').classList.toggle('active', !notesRoute && !jointRoute);
+  $('#nav-discover').classList.toggle('active', !!jointRoute);
   closeAnalysis();
+  window.discoveryWorkspace?.leave();
+  window.jointDiscovery?.leave();
+  if (jointRoute) {
+    window.notesWorkspace?.leave();
+    state.selected = null;
+    await window.jointDiscovery.route(jointRoute[1], jointRoute[2]);
+    return;
+  }
+  if (discoveryRoute) {
+    window.notesWorkspace?.leave();
+    state.selected = null;
+    await window.discoveryWorkspace.route(discoveryRoute[1]);
+    return;
+  }
   if (notesRoute) {
     state.selected = null;
     document.title = '我的笔记 · 文献梳理工具';

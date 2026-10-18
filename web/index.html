@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="/static/translation.css?v=translation-1" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
   <link rel="stylesheet" href="/static/notes.css?v=notes-delete-1" />
+  <link rel="stylesheet" href="/static/discovery.css?v=discovery-3" />
 </head>
 <body>
   <header class="topbar">
@@ -24,6 +25,7 @@
       <nav class="workspace-nav" aria-label="工作台">
         <button id="nav-library" class="workspace-link active"><span>▤ 文献库</span></button>
         <button id="nav-notes" class="workspace-link"><span>✎ 我的笔记</span><strong id="notes-count">0</strong></button>
+        <button id="nav-discover" class="workspace-link"><span>⌕ 联合查找</span></button>
       </nav>
       <div class="sidebar-title">我的文献库</div>
       <button class="collection active" data-key=""><span>全部文献</span><strong id="all-count">—</strong></button>
@@ -74,6 +76,8 @@
     </section>
   </main>
   <main id="detail" class="detail hidden" aria-label="文献详情"></main>
+  <main id="discovery-workspace" class="discovery-workspace hidden" aria-label="发现相关文献"></main>
+  <main id="joint-workspace" class="discovery-workspace hidden" aria-label="联合查找文献"></main>
   <div id="research-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="research-title">
     <div class="modal-card research-modal-card">
       <div class="modal-head"><h2 id="research-title">我的研究方向</h2><button id="close-research" class="close-button" aria-label="关闭研究方向设置">×</button></div>
@@ -111,11 +115,14 @@
   <script src="/static/reading.js?v=wording-1"></script>
   <script src="/static/vendor/katex/katex.min.js"></script>
   <script src="/static/deep-reading.js?v=wording-1"></script>
-  <script src="/static/app.js?v=notes-delete-1"></script>
+  <script src="/static/app.js?v=discovery-2"></script>
   <script src="/static/translation.js?v=term-reading-1"></script>
   <script src="/static/pdf-reader.js?v=formula-source-1"></script>
   <script src="/static/term-reading.js?v=term-reading-1"></script>
   <script src="/static/vendor/markdown-it/markdown-it.min.js"></script>
   <script src="/static/notes.js?v=notes-delete-1"></script>
+  <script src="/static/discovery-export.js?v=discovery-3"></script>
+  <script src="/static/discovery.js?v=discovery-3"></script>
+  <script src="/static/joint-discovery.js?v=discovery-3"></script>
 </body>
 </html>

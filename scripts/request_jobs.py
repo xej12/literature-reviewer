@@ -117,6 +117,20 @@ def check():
         job.check()
 
 
+def inherit_context(function):
+    """Bind a worker to this request so cancellation also closes its sockets."""
+    job = getattr(_local, 'job', None)
+    def run(*args, **kwargs):
+        previous = getattr(_local, 'job', None)
+        _local.job = job
+        try:
+            check()
+            return function(*args, **kwargs)
+        finally:
+            _local.job = previous
+    return run
+
+
 def read(response):
     try:
         return response.read()

@@ -41,6 +41,8 @@ PDF、Zotero 元数据、个人术语表和模型生成记录由使用者提供�
 
 ## 设计与工作流参考
 
+- [Local Citation Network](https://github.com/LocalCitationNetwork/LocalCitationNetwork.github.io)、[semanticscholar](https://github.com/danielnsilva/semanticscholar)、[PyAlex](https://github.com/J535D165/pyalex)、[Zotero Research Assistant](https://github.com/qiobn/zotero-research-assistant)、[Inciteful Zotero Plugin](https://github.com/inciteful-xyz/inciteful-zotero-plugin)：文献发现与引用关系的调研参考。当前独立实现公开 API 适配器，没有复制这些项目的源码或安装其完整系统，见 [调研与实现范围](references/discovery-research.md)。
+
 - [Better Notes for Zotero](https://github.com/windingwind/zotero-better-notes)：参考关联文献、模板与导出流程；未复制 AGPL 插件代码或模板。笔记模板由本项目自行编写。
 - [Vditor](https://github.com/Vanessa219/vditor)：参考编辑/预览与工具栏交互；当前没有集成其完整编辑器。见 [笔记调研](references/notes-research.md)。
 

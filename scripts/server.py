@@ -37,6 +37,9 @@ import term_reading
 import figure_reading
 import request_jobs
 import notes
+import discovery
+import discovery_joint
+import discovery_export
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 WEB_DIR = SKILL_DIR / "web"
@@ -1059,6 +1062,34 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(parsed.path)
         params = parse_qs(parsed.query)
         try:
+            if path == '/api/discovery/settings':
+                self.send_json(discovery.public_settings())
+                return
+            if path == '/api/discovery/groups':
+                self.send_json(discovery_joint.history())
+                return
+            joint_match = re.fullmatch(r'/api/discovery/groups/([a-f0-9]{64})', path)
+            if path == '/api/discovery/library' or joint_match:
+                if STORE is None:
+                    raise RuntimeError(STARTUP_ERROR)
+                library = STORE._all_items()
+                if joint_match:
+                    self.send_json(discovery_joint.load(joint_match[1], library))
+                else:
+                    query = params.get('q', [''])[0][:500]
+                    items = matching_papers(paper_groups(library), query)
+                    self.send_json({'total':len(items), 'items':[
+                        {k:item.get(k) for k in ('key','title','creators','date','doi')} for item in items[:200]]})
+                return
+            discovery_match = re.fullmatch(r'/api/items/([A-Z0-9]+)/discovery', path)
+            if discovery_match:
+                if STORE is None:
+                    raise RuntimeError(STARTUP_ERROR)
+                item = STORE.item(discovery_match[1])
+                if not item:
+                    raise FileNotFoundError('文献不存在')
+                self.send_json(discovery.with_library(discovery.cached(item), STORE._all_items()))
+                return
             if path == "/api/note-templates":
                 self.send_json({"templates": notes.TEMPLATES})
                 return
@@ -1214,6 +1245,44 @@ class Handler(BaseHTTPRequestHandler):
     def handle_post(self) -> None:
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
+        discovery_match = re.fullmatch(r'/api/items/([A-Z0-9]+)/discovery', path)
+        joint_feedback = re.fullmatch(r'/api/discovery/groups/([a-f0-9]{64})/feedback', path)
+        if path in ('/api/discovery/settings', '/api/discovery/groups', '/api/discovery/export') or discovery_match or joint_feedback:
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 10000:
+                    raise ValueError('检索请求为空或过长')
+                payload = json.loads(self.rfile.read(length).decode('utf-8'))
+                if not isinstance(payload, dict):
+                    raise ValueError('无效的检索请求')
+                if path == '/api/discovery/settings':
+                    self.send_json(discovery.save_settings(payload))
+                elif path == '/api/discovery/export':
+                    if STORE is None:
+                        raise RuntimeError(STARTUP_ERROR)
+                    self.send_json(discovery_export.export(payload, STORE._all_items()))
+                elif path == '/api/discovery/groups' or joint_feedback:
+                    if STORE is None:
+                        raise RuntimeError(STARTUP_ERROR)
+                    library = STORE._all_items()
+                    self.send_json(discovery_joint.feedback(joint_feedback[1],payload,library) if joint_feedback else discovery_joint.search(payload,library))
+                else:
+                    if STORE is None:
+                        raise RuntimeError(STARTUP_ERROR)
+                    item = STORE.item(discovery_match[1])
+                    if not item:
+                        raise FileNotFoundError('文献不存在')
+                    result = discovery.discover(item, payload.get('force', False), payload.get('selection'))
+                    self.send_json(discovery.with_library(result, STORE._all_items()))
+            except request_jobs.Cancelled:
+                raise
+            except FileNotFoundError as exc:
+                self.send_json({'error': str(exc)}, HTTPStatus.NOT_FOUND)
+            except (ValueError, TypeError, UnicodeError) as exc:
+                self.send_json({'error': str(exc)}, HTTPStatus.BAD_REQUEST)
+            except (RuntimeError, OSError) as exc:
+                self.send_json({'error': str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
+            return
         note_match = re.fullmatch(r"/api/notes/([a-f0-9]{32})", path)
         note_delete = re.fullmatch(r"/api/notes/([a-f0-9]{32})/delete", path)
         if path == "/api/notes" or note_match or note_delete:
