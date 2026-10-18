@@ -22,12 +22,37 @@ async function getJson(url) {
   return payload;
 }
 
-async function postJson(url, body = {}) {
-  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+async function postJson(url, body = {}, options = {}) {
+  const response = await fetch(url, { ...options, method: "POST", headers: { "Content-Type": "application/json", ...options.headers }, body: JSON.stringify(body) });
   const payload = await response.json();
   if (!response.ok || payload.error) throw new Error(payload.error || `请求失败：${response.status}`);
   return payload;
 }
+
+let analysisGeneration = null;
+function beginAnalysisGeneration(onCancel = () => {}) {
+  cancelAnalysisGeneration();
+  const request = {id:crypto.randomUUID().replaceAll('-', ''), controller:new AbortController(), cancelled:false, onCancel};
+  request.options = {signal:request.controller.signal, headers:{'X-Generation-ID':request.id}};
+  analysisGeneration = request;
+  return request;
+}
+function finishAnalysisGeneration(request) {
+  if (analysisGeneration === request) analysisGeneration = null;
+}
+function cancelAnalysisGeneration() {
+  const request = analysisGeneration;
+  if (!request) return;
+  analysisGeneration = null;
+  request.cancelled = true;
+  request.controller.abort();
+  request.onCancel();
+  // Aborting fetch alone does not stop the server's upstream model call.
+  fetch(`/api/generations/${request.id}/cancel`, {method:'POST', keepalive:true}).then(response => {
+    if (!response.ok) throw Error('取消生成未送达服务器，请检查本机服务。');
+  }).catch(error => showError(error));
+}
+window.addEventListener('pagehide', cancelAnalysisGeneration);
 
 function showError(error) {
   const box = $("#message");
@@ -111,7 +136,8 @@ function renderDetail(item) {
     <div id="paper-authors" class="detail-authors">${escapeHtml(authorSummary(item.creators))}</div>
     ${item.creators?.length > 3 ? `<button id="toggle-authors" class="text-button authors-toggle" aria-expanded="false" aria-controls="paper-authors">展开全部作者</button>` : ""}
     ${openableAttachment ? `<div class="reader-actions"><button id="read-attachment" class="primary-button">${attachmentLabel}</button>${item.url ? `<button id="open-source" class="text-button">打开来源网页 ↗</button>` : ""}</div>` : item.url ? `<div class="reader-actions"><button id="open-source" class="primary-button">打开来源网页 ↗</button></div>` : ""}
-    <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${item.analysis?.summary ? "查看论文解读" : "生成论文解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
+    <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${(item.analysis?.summary || item.analysis?.deepReadingAvailable) ? "查看论文解读" : "论文深度解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
+    <div class="translation-tools">${pdf ? `<button id="selection-reader-button" class="secondary-button">划词阅读 PDF</button>` : ""}<button id="term-reading-button" class="secondary-button">术语精讲</button><button id="terminology-button" class="text-button">专业术语表</button><span>选中文字后点「翻译」；术语表命中免费，其他译文按文献保存。</span></div>
     <dl class="facts">
       ${item.publicationTitle ? `<div><dt>期刊 / 来源</dt><dd>${escapeHtml(item.publicationTitle)}</dd></div>` : ""}
       ${item.date ? `<div><dt>日期</dt><dd>${escapeHtml(item.date)}</dd></div>` : ""}
@@ -138,6 +164,9 @@ function renderDetail(item) {
   });
   $("#analyze-summary").addEventListener("click", () => analyzeSummary(item));
   $("#extract-terms").addEventListener("click", () => extractTerms(item));
+  $("#terminology-button").addEventListener("click", openTerminology);
+  $('#term-reading-button').addEventListener('click', () => openTermReading(item));
+  if (pdf) $("#selection-reader-button").addEventListener("click", () => openSelectionReader(item, pdf));
   if (pdf) $("#analyze-figure").addEventListener("click", () => analyzeFigure(item, pdf));
   if (openableAttachment) $("#read-attachment").addEventListener("click", () => window.open(`/api/attachments/${openableAttachment.key}/file`, "_blank"));
   if (item.url) $("#open-source").addEventListener("click", () => window.open(item.url, "_blank", "noopener"));
@@ -163,9 +192,24 @@ function openSettings() {
     $("#setting-base-url").value = config.baseUrl || "";
     $("#setting-model").value = config.model || "";
     $("#setting-api-key").value = "";
+    $("#setting-output-tokens").value = config.generation?.maxOutputTokens ?? "";
+    $("#setting-thinking-mode").value = config.generation?.thinkingMode || "auto";
+    refreshGenerationSettingsHint();
     $("#settings-message").textContent = config.configured ? "当前已有可用配置。重新填写 API Key 可覆盖。" : "尚未配置模型。";
     $("#settings-modal").classList.remove("hidden");
   }).catch(showError);
+}
+
+function refreshGenerationSettingsHint() {
+  let supported = false;
+  try {
+    supported = new URL($("#setting-base-url").value).hostname === "api.deepseek.com" && ["deepseek-flash", "deepseek-v4-pro"].includes($("#setting-model").value.trim());
+  } catch {}
+  const mode = $("#setting-thinking-mode");
+  mode.disabled = !supported;
+  if (!supported) mode.value = "auto";
+  const budget = $("#setting-output-tokens").value.trim();
+  $("#generation-settings-hint").textContent = budget ? `本次上限为 ${Number(budget).toLocaleString()} Token，请确认在服务支持范围内。` : supported ? `自动预算：DeepSeek 当前文档默认${mode.value === "off" ? "非思考模式 8K" : mode.value === "max" ? "最大思考模式 128K" : "思考模式 64K"}。不会再被本工具固定限制为 8000。` : "自动预算：使用模型服务的默认输出上限。思考模式由该服务控制；需要时可在上方填写更大的输出预算。";
 }
 
 function closeSettings() {
@@ -173,16 +217,21 @@ function closeSettings() {
 }
 
 function openAnalysis(title, eyebrow = "PAPER ANALYSIS") {
+  cancelAnalysisGeneration();
   $("#analysis-modal-title").textContent = title;
   $("#analysis-modal-eyebrow").textContent = eyebrow;
   $("#analysis-modal").classList.toggle("figure-modal", eyebrow === "FIGURE READING");
+  $("#analysis-modal").classList.toggle("deep-modal", eyebrow === "DEEP READING");
   $("#analysis-modal-body").innerHTML = `<div class="analysis-loading">正在生成，请稍候…</div>`;
   $("#analysis-modal").classList.remove("hidden");
 }
 
 function closeAnalysis() {
+  cancelAnalysisGeneration();
+  window.dismissSelectionTranslation?.();
   $("#analysis-modal").classList.add("hidden");
   $("#analysis-modal").classList.remove("figure-modal");
+  $("#analysis-modal").classList.remove("deep-modal");
 }
 
 async function saveSettings() {
@@ -195,9 +244,12 @@ async function saveSettings() {
       baseUrl: $("#setting-base-url").value,
       model: $("#setting-model").value,
       apiKey: $("#setting-api-key").value,
+      maxOutputTokens: $("#setting-output-tokens").value.trim() || null,
+      thinkingMode: $("#setting-thinking-mode").value,
     });
     message.textContent = "配置已保存。";
     if (state.selected) renderDetail(state.selected);
+    if (activeDeepView?.data) paintDeepReading(activeDeepView);
     setTimeout(closeSettings, 500);
   } catch (error) {
     message.textContent = error.message || String(error);
@@ -207,59 +259,38 @@ async function saveSettings() {
 }
 
 async function analyzeSummary(item, force = false) {
-  const cached = item.analysis?.summary;
-  const button = $("#analyze-summary");
-  const panel = $("#analysis-modal-body");
-  button.disabled = true;
-  button.textContent = "正在解读…";
-  openAnalysis("论文解读");
-  try {
-    const result = cached && !force ? { ...item.analysis, summary: cached, model: item.analysis.model, cached: true } : await postJson(`/api/items/${item.key}/summary`, { force });
-    item.analysis = { ...(item.analysis || {}), ...result };
-    if (!result.cached) refreshPaperPriority(item);
-    loadItems({ quiet: true });
-    const labels = {
-      research_question: ["研究问题", "⌁"],
-      methods: ["方法与数据", "◌"],
-      findings: ["主要发现", "✦"],
-      limitations: ["局限性", "△"],
-    };
-    panel.innerHTML = Object.entries(labels).map(([key, [label, icon]]) => `
-      <div class="summary-card"><div class="summary-label"><span>${icon}</span>${label}</div><p>${escapeHtml(result.summary[key] || "原文未说明")}</p></div>
-    `).join("") + `<div class="summary-source">${result.cached ? "已读取本地保存结果" : "已保存到本地"} · 模型：${escapeHtml(result.model || "未说明")} · 请结合原文页码核对</div><button id="regenerate-analysis" class="secondary-button regenerate-button">重新生成（消耗 Token）</button>`;
-    $("#regenerate-analysis").addEventListener("click", () => analyzeSummary(item, true));
-    panel.scrollTop = 0;
-  } catch (error) {
-    panel.innerHTML = `<div class="analysis-error">${escapeHtml(error.message || String(error))}</div>`;
-  } finally {
-    button.disabled = false;
-    button.textContent = item.analysis?.summary ? "查看论文解读" : "生成论文解读";
-  }
+  return openDeepReading(item);
 }
 
 async function extractTerms(item, force = false) {
   const cached = item.analysis?.terms;
+  if (force && cached && !confirm('重新提取会调用模型并消耗 Token。已存的术语精讲会保留，继续吗？')) return;
   const button = $("#extract-terms");
   const panel = $("#analysis-modal-body");
   button.disabled = true;
   button.textContent = "提取中…";
   openAnalysis("专业术语", "TERM EXTRACTION");
+  const request = cached && !force ? null : beginAnalysisGeneration();
   try {
-    const result = cached && !force ? { ...item.analysis, terms: cached, model: item.analysis.model, cached: true } : await postJson(`/api/items/${item.key}/terms`, { force });
+    const result = cached && !force ? { ...item.analysis, terms: cached, model: item.analysis.model, cached: true } : await postJson(`/api/items/${item.key}/terms`, { force }, request.options);
+    if (request?.cancelled) return;
     item.analysis = { ...(item.analysis || {}), ...result };
     loadItems({ quiet: true });
     if (!result.terms?.length) {
       panel.innerHTML = `<div class="terms-empty">模型没有识别出足够明确的专业术语。</div>`;
     } else {
-      panel.innerHTML = `<div class="terms-heading"><span>专业术语</span><small>共 ${result.terms.length} 个 · 请结合原文核对</small></div>` + result.terms.map((term) => `
-        <div class="term-card"><div class="term-top"><strong>${escapeHtml(term.term)}</strong>${term.page ? `<span>第 ${escapeHtml(term.page)} 页</span>` : ""}</div><p class="term-explanation">${escapeHtml(term.explanation)}</p><p class="term-context"><span>本文语境</span>${escapeHtml(term.context)}</p></div>
+      panel.innerHTML = `<div class="terms-heading"><span>专业术语</span><small>共 ${result.terms.length} 个 · 请结合原文核对</small></div><p class="term-learning-note">短定义供快速浏览。想理解机制、本文用法与例子，可打开单个术语的精讲；打开不调用模型。</p>` + result.terms.map((term, index) => `
+        <div class="term-card"><div class="term-top"><strong>${escapeHtml(term.term)}</strong>${term.page ? `<span>第 ${escapeHtml(term.page)} 页</span>` : ""}</div><p class="term-explanation">${escapeHtml(term.explanation)}</p><p class="term-context"><span>本文语境</span>${escapeHtml(term.context)}</p><button class="secondary-button term-lesson-button" data-term-lesson="${index}">打开术语精讲</button></div>
       `).join("") + `<div class="summary-source">${result.cached ? "已读取本地保存结果" : "已保存到本地"} · 模型：${escapeHtml(result.model || "未说明")}</div><button id="regenerate-terms" class="secondary-button regenerate-button">重新提取（消耗 Token）</button>`;
     }
     if (result.terms?.length) $("#regenerate-terms").addEventListener("click", () => extractTerms(item, true));
+    panel.querySelectorAll('[data-term-lesson]').forEach(button => button.onclick = () => openTermReading(item, result.terms[Number(button.dataset.termLesson)].term));
     panel.scrollTop = 0;
   } catch (error) {
+    if (request?.cancelled || error.name === 'AbortError') return;
     panel.innerHTML = `<div class="analysis-error">${escapeHtml(error.message || String(error))}</div>`;
   } finally {
+    if (request) finishAnalysisGeneration(request);
     button.disabled = false;
     button.textContent = item.analysis?.terms ? "查看专业术语" : "提取专业术语";
   }
@@ -273,22 +304,35 @@ function figureCache(item, attachmentKey, page, region = null) {
   return item.analysis?.figures?.[figureKey(attachmentKey, page, region)] || null;
 }
 
-function renderFigureResult(item, pdf, page, region = null) {
+function renderFigureResult(item, pdf, page, region = null, workspace = null) {
   const target = $("#figure-result");
   if (!target) return;
-  const cached = figureCache(item, pdf.key, page, region);
-  if (!cached) {
-    target.innerHTML = `<div class="figure-empty">${region ? "已选中图表区域。可拖动重新框选，建议包含图题、坐标轴和图例。" : "可点击“框选图表”，在左侧拖出一个选区。也可直接解析整页。"} 点击解析才会调用模型并消耗 Token。</div>`;
+  const key = figureKey(pdf.key, page, region);
+  const history = item.analysis?.figureHistory?.[key] || [];
+  const revision = workspace?.revision ?? -1;
+  const cached = revision >= 0 ? history[revision] : figureCache(item, pdf.key, page, region);
+  const draft = item.analysis?.figureDrafts?.[key];
+  const draftHtml = draft && revision < 0 ? `<section class="deep-draft"><strong>本次答复已保存，等待本地整理</strong><p>${escapeHtml(draft.formatError || '答复暂未整理为完整图表讲解。')}</p>${draft.content?.trim() ? `<button id="figure-recover" class="secondary-button" ${workspace?.busy ? 'disabled' : ''}>重新整理已存答复（免费）</button><details><summary>查看原始答复（免费）</summary><pre>${escapeHtml(draft.content)}</pre></details>` : '<p>本次没有正文，无法在本地恢复；重新生成会消耗 Token。</p>'}${cached ? '<p>下方继续显示上一次成功解析。</p>' : ''}</section>` : '';
+  const emptyHtml = `<div class="figure-empty">${region ? "已选中图表区域。可拖动重新框选，建议包含图题、坐标轴和图例。" : "可点击“框选图表”，在左侧拖出一个选区。也可直接解析整页。"} 点击解析才会调用模型并消耗 Token。</div>`;
+  if (!cached && !draft) {
+    target.innerHTML = emptyHtml;
     return;
   }
+  const revisionHtml = history.length ? `<label class="deep-revision-label">解析记录 <select id="figure-revision" ${workspace?.busy ? 'disabled' : ''}><option value="-1">最新结果</option>${history.map((h,i) => `<option value="${i}" ${revision === i ? 'selected' : ''}>历史结果 ${i+1} · ${escapeHtml(h.generatedAt || '已保存')}</option>`).join('')}</select></label>` : '';
+  const scope = `<div class="figure-evidence-scope">原文位置：PDF 第 ${page} 页 · ${region ? '左侧框选区域' : '左侧完整页面'}<br>讲解区分图片直接可见内容、补充教学和分析推断。</div>`;
   const cards = [
     ["图表内容", "description", "▦"],
     ["主要趋势", "trends", "↗"],
     ["核心结论", "takeaway", "✦"],
     ["注意事项", "caveats", "△"],
   ];
-  target.innerHTML = cards.map(([label, key, icon]) => `<div class="figure-card"><div class="summary-label"><span>${icon}</span>${label}</div><p>${escapeHtml(cached[key] || "图中无法确认")}</p></div>`).join("") +
-    `<div class="summary-source">已保存到本地 · 第 ${escapeHtml(cached.page || page)} 页 · ${region ? "框选区域" : "整页"} · 模型：${escapeHtml(cached.model || item.analysis?.model || "未说明")}</div>`;
+  const labels = {image:'图中观察',background:'补充背景 / 教学示例',inference:'分析推断 / 待验证'};
+  const body = cached?.blocks?.length ? `${cached.intro ? `<p class="figure-reading-intro">${escapeHtml(cached.intro)}</p>` : ''}${cached.blocks.map((b,i) => `<section class="figure-card"><div class="figure-block-heading"><h4>${i+1}. ${escapeHtml(b.title)}</h4><span class="deep-basis">${escapeHtml(labels[b.basis] || '待核对')}</span></div>${b.anchor ? `<p class="figure-anchor">图中定位：${escapeHtml(b.anchor)}</p>` : ''}<div class="deep-prose">${renderDeepText(b.body, b.basis === 'background' ? {basis:'background'} : null)}</div></section>`).join('')}`
+    : cached ? `<p class="figure-legacy-note">这是已保存的简版解析。需要逐项精讲时，可主动重新解析。</p>${cards.map(([label, field, icon]) => `<div class="figure-card"><div class="summary-label"><span>${icon}</span>${label}</div><div class="deep-prose">${renderDeepText(cached[field] || '图中无法确认')}</div></div>`).join('')}` : '';
+  target.innerHTML = scope + revisionHtml + draftHtml + (cached?.notices || []).map(n => `<p class="deep-warning">${escapeHtml(n)}</p>`).join('') + body + (cached ?
+    `<div class="summary-source">${revision >= 0 ? '历史解析 · 只读' : '已保存到本地'} · 第 ${escapeHtml(cached.page || page)} 页 · ${region ? "框选区域" : "整页"} · 模型：${escapeHtml(cached.model || item.analysis?.model || "未说明")}</div>` : '');
+  $('#figure-recover')?.addEventListener('click', () => runFigureAnalysis(workspace, true));
+  $('#figure-revision')?.addEventListener('change', event => { workspace.revision = Number(event.target.value); workspace.refresh(); });
 }
 
 function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
@@ -305,7 +349,7 @@ function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
   const selection = $("#figure-selection");
   const cropButton = $("#figure-crop");
   const savedSelect = $("#figure-saved");
-  const workspace = { item, pdf, page: initialPage, region: null, busy: false, request: null };
+  const workspace = { item, pdf, page: initialPage, region: null, revision:-1, busy: false, request: null };
   panel.figureWorkspace = workspace;
   let zoom = 1;
   let currentPage = initialPage;
@@ -322,18 +366,19 @@ function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
   const refresh = () => {
     drawRegion();
     const cached = figureCache(item, pdf.key, currentPage, workspace.region);
+    const draft = item.analysis?.figureDrafts?.[figureKey(pdf.key, currentPage, workspace.region)];
     const busy = workspace.busy;
-    runButton.disabled = busy || !preview.complete || !preview.naturalWidth;
-    runButton.textContent = busy ? "正在解析…" : cached ? "重新解析（消耗 Token）" : workspace.region ? "解析所选图表（消耗 Token）" : "解析整页（消耗 Token）";
+    runButton.disabled = busy || workspace.revision >= 0 || !preview.complete || !preview.naturalWidth;
+    runButton.textContent = busy ? "正在处理（关闭窗口可取消）" : cached || draft ? "重新解析（消耗 Token）" : workspace.region ? "精讲所选图表（消耗 Token）" : "精讲本页图表（消耗 Token）";
     cropButton.disabled = busy || !preview.complete || !preview.naturalWidth;
     panel.querySelectorAll("#figure-page, #figure-prev-page, #figure-next-page, #figure-clear-crop, #figure-saved").forEach(el => { el.disabled = busy; });
     prevButton.disabled = busy || currentPage <= 1;
     nextButton.disabled = busy || currentPage >= pageCount;
-    renderFigureResult(item, pdf, currentPage, workspace.region);
-    const entries = Object.entries(item.analysis?.figures || {}).filter(([key, value]) => key.startsWith(`${pdf.key}:`) && value.page === currentPage);
-    savedSelect.innerHTML = `<option value="">本页已保存的解析（${entries.length}）</option>` + entries.map(([key, value], index) => `<option value="${escapeHtml(key)}">${value.region ? `图表选区 ${index + 1}` : "整页解析"}</option>`).join("");
+    renderFigureResult(item, pdf, currentPage, workspace.region, workspace);
+    const entries = Object.entries({...item.analysis?.figureDrafts, ...item.analysis?.figures}).filter(([key, value]) => key.startsWith(`${pdf.key}:`) && value.page === currentPage);
+    savedSelect.innerHTML = `<option value="">本页已保存的解析（${entries.length}）</option>` + entries.map(([key, value], index) => `<option value="${escapeHtml(key)}">${value.region ? `图表选区 ${index + 1}` : "整页解析"}${item.analysis?.figureDrafts?.[key] ? ' · 待整理' : ''}</option>`).join("");
     const activeKey = figureKey(pdf.key, currentPage, workspace.region);
-    if (cached) savedSelect.value = activeKey;
+    if (cached || draft) savedSelect.value = activeKey;
   };
   workspace.refresh = refresh;
   const updateZoom = () => {
@@ -344,7 +389,8 @@ function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
     const page = Math.max(1, Math.min(pageCount, requestedPage));
     currentPage = page;
     workspace.page = page;
-    const savedPage = Object.values(item.analysis?.figures || {}).find(value => value.attachmentKey === pdf.key && value.page === page);
+    workspace.revision = -1;
+    const savedPage = Object.values({...item.analysis?.figureDrafts, ...item.analysis?.figures}).find(value => value.attachmentKey === pdf.key && value.page === page);
     workspace.region = figureCache(item, pdf.key, page) ? null : savedPage?.region || null;
     pageInput.value = page;
     pageStatus.textContent = `第 ${page} 页 / 共 ${pageCount} 页`;
@@ -360,10 +406,10 @@ function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
     cropButton.setAttribute("aria-pressed", String(selecting));
     stage.classList.toggle("selecting", selecting);
   };
-  $("#figure-clear-crop").onclick = () => { workspace.region = null; refresh(); };
+  $("#figure-clear-crop").onclick = () => { workspace.region = null; workspace.revision=-1; refresh(); };
   savedSelect.onchange = () => {
-    const saved = item.analysis?.figures?.[savedSelect.value];
-    if (saved) { workspace.region = saved.region || null; refresh(); }
+    const saved = item.analysis?.figures?.[savedSelect.value] || item.analysis?.figureDrafts?.[savedSelect.value];
+    if (saved) { workspace.region = saved.region || null; workspace.revision=-1; refresh(); }
   };
   const point = (event) => {
     const rect = preview.getBoundingClientRect();
@@ -386,6 +432,7 @@ function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
     start = null;
     if (stage.hasPointerCapture(event.pointerId)) stage.releasePointerCapture(event.pointerId);
     if (!workspace.region || workspace.region[2] < 10 || workspace.region[3] < 10) workspace.region = null;
+    workspace.revision=-1;
     refresh();
   };
   stage.onpointercancel = () => { start = null; workspace.region = null; refresh(); };
@@ -402,34 +449,44 @@ function wireFigureWorkspace(item, pdf, pageCount, initialPage) {
   updatePage(initialPage);
 }
 
-async function runFigureAnalysis(workspace) {
-  if (workspace.busy) return;
+async function runFigureAnalysis(workspace, repairOnly = false) {
+  if (!workspace || workspace.busy || workspace.revision >= 0) return;
   const { item, pdf, page, region } = workspace;
   const force = Boolean(figureCache(item, pdf.key, page, region));
+  const draft = item.analysis?.figureDrafts?.[figureKey(pdf.key, page, region)];
+  if (!repairOnly && (force || draft) && !confirm('重新解析会调用模型并消耗 Token，已有成功结果会保留为历史。继续吗？')) return;
   const panel = $("#analysis-modal-body");
   workspace.busy = true;
   workspace.refresh();
   const button = $("#run-figure");
+  const request = beginAnalysisGeneration(() => { workspace.busy = false; });
+  workspace.request = request;
   try {
-    const result = await postJson(`/api/items/${item.key}/figure`, { attachmentKey: pdf.key, page, region, force });
+    const result = await postJson(`/api/items/${item.key}/figure`, { attachmentKey: pdf.key, page, region, force: !repairOnly && (force || Boolean(draft)), repairOnly }, request.options);
+    if (request.cancelled) return;
     item.analysis = { ...(item.analysis || {}), ...result };
     loadItems({ quiet: true });
     workspace.busy = false;
+    workspace.revision=-1;
     if (panel.figureWorkspace === workspace && $("#run-figure") === button) workspace.refresh();
   } catch (error) {
+    if (request.cancelled || error.name === 'AbortError') return;
     workspace.busy = false;
     if (panel.figureWorkspace === workspace && $("#run-figure") === button) {
       workspace.refresh();
       $("#figure-result").insertAdjacentHTML("afterbegin", `<div class="analysis-error">${escapeHtml(error.message || String(error))}</div>`);
     }
+  } finally {
+    finishAnalysisGeneration(request);
   }
 }
 
 async function analyzeFigure(item, pdf) {
   openAnalysis("图表解析", "FIGURE READING");
   const panel = $("#analysis-modal-body");
+  panel.innerHTML = '<div class="analysis-loading">正在加载原 PDF 和已保存解析…</div>';
   try {
-    const cachedPages = Object.keys(item.analysis?.figures || {})
+    const cachedPages = Object.keys({...item.analysis?.figureDrafts, ...item.analysis?.figures})
       .filter((key) => key.startsWith(`${pdf.key}:`))
       .map((key) => Number.parseInt(key.split(":")[1], 10))
       .filter(Number.isFinite);
@@ -438,7 +495,7 @@ async function analyzeFigure(item, pdf) {
     const pageCount = firstPage.pageCount || 1;
     const page = Math.max(1, Math.min(pageCount, preferredPage));
     panel.innerHTML = `
-      <div class="figure-intro">用预览两侧的箭头连续翻页，找到图表后再点击解析。可用“＋”放大细节，或打开原图查看高清页面。</div>
+      <div class="figure-intro">先对照左侧原图，再逐项理解坐标与单位、曲线或表格、现象背后的机制与证据边界。框选时请包含图题、坐标轴和图例；点击精讲才消耗 Token。</div>
       <div class="figure-workspace">
         <section class="figure-pane figure-pdf-pane">
           <div class="figure-pane-title"><span>PDF 页面</span><span id="figure-page-status"></span></div>
@@ -579,8 +636,11 @@ $("#settings-button").addEventListener("click", openSettings);
 $("#close-settings").addEventListener("click", closeSettings);
 $("#cancel-settings").addEventListener("click", closeSettings);
 $("#save-settings").addEventListener("click", saveSettings);
+for (const id of ["setting-base-url", "setting-model", "setting-output-tokens", "setting-thinking-mode"]) $("#" + id).addEventListener("input", refreshGenerationSettingsHint);
 $("#settings-modal").addEventListener("click", (event) => { if (event.target.id === "settings-modal") closeSettings(); });
 $("#close-analysis").addEventListener("click", closeAnalysis);
 $("#analysis-modal").addEventListener("click", (event) => { if (event.target.id === "analysis-modal") closeAnalysis(); });
 initReadingControls();
-boot();
+// Reader/translation helpers load after this file. Start once all page scripts
+// are available, including when localhost API responses arrive immediately.
+document.addEventListener('DOMContentLoaded', boot, { once:true });

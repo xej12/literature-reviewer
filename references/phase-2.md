@@ -29,12 +29,33 @@ paper-specific context, and a page hint.
 Summary, term, and page-level figure results are cached per Zotero item under
 `data/analysis/`. Figure results use the PDF attachment key and page number as
 their cache key, so opening a previously interpreted page does not call the
-model again. The explicit “重新解析（消耗 Token）” button bypasses that cache.
+model again. The explicit “重新解析（消耗 Token）” button bypasses that cache after confirmation.
 
 The 图表解析 action renders one PDF page locally for preview and sends only
-that page image to the configured OpenAI-compatible vision model. It returns a
-short description, trends, takeaway, and caveats; the result is stored beside
-the paper's other analysis results.
+that page image to the configured OpenAI-compatible vision model. New answers
+contain detailed reading blocks for axes/units/legends, individual curves or
+panels, mechanisms, evidence limits and self-check questions, adapting to
+tables and optical/flow diagrams. Blocks distinguish image observations,
+background teaching and inference, with descriptive visual anchors. The model
+sees the image and title, not the full paper. Older four-card results remain
+readable without regeneration. Math uses the same local renderer as chapters.
+
+Figure answers are saved before parsing. Invalid or truncated answers remain
+in `figureDrafts`; successful results stay visible and local repair is free.
+Successful regeneration preserves `figureHistory`; raw attempts are kept in
+`figureAttempts` in the same ignored per-item analysis file. `repairOnly:true`
+never calls a model, even without a draft. Requests share a lock around cache
+lookup/generation so duplicate submissions reuse the saved answer. Output
+budget follows the model settings; no automatic retry is performed.
+
+Generation requests from the analysis modal carry a unique 32-character
+hexadecimal `X-Generation-ID` header. Closing or replacing that modal aborts
+the browser fetch and posts to `/api/generations/<ID>/cancel`. The cancellation
+handler runs independently of generation locks, shuts down the upstream HTTP
+socket during header/body waits and prevents queued jobs from starting. A
+short-lived tombstone covers cancellation arriving before the generation
+request. Completed cached results remain intact; cancelled responses cannot
+replace them. Provider-side stopping and billing depend on the provider.
 
 Users can choose **框选图表**, then drag over the PDF preview to include a
 figure, caption, axes, and legend. The server crops the page image before

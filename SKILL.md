@@ -38,5 +38,56 @@ and keep insufficient evidence in the unassessed group.
 Read [references/phase-1.md](references/phase-1.md) for the run command and
 the API contract. Read [references/phase-2.md](references/phase-2.md) before configuring model-backed summaries. OCR and note export remain future milestones.
 
+## On-demand deep reading
+
+Open `GET /api/items/<KEY>/deep-reading` to inspect PDF coverage and cached
+chapters for free. Only call `POST /api/items/<KEY>/deep-reading` with
+`{"section":"overview|methods|formulas|evidence|limits","force":false}`
+when the user explicitly requests chapter generation. Viewing a saved chapter
+must not call a model. Do not generate all chapters automatically or use paid
+model calls for software tests. The website provides this same workflow.
+
+Use `scripts/deep_reading.py` for the application teaching contract. Distinguish
+paper facts, background teaching and inference. Source IDs resolve to PDF page
+order and exact extracted text; they verify location, not semantic correctness.
+Show missing or partial text coverage. Never invent missing formula symbols.
+Existing summaries remain in the old cache and can be viewed alongside deep
+reading. New versioned chapter caches live in ignored `data/deep-reading/`.
+
+## Terminology and selection translation
+
+Use `GET /api/terminology` to read the shared personal glossary for free.
+`POST /api/terminology` saves an explicitly supplied `term`, `translation` and
+optional domain `note`; never claim that model-generated entries are vetted
+terminology. The initial user-confirmed preference is coronagraph → 日冕仪.
+Glossary rules apply to future chapter, terms and figure generation. Do not
+silently regenerate cached content after a correction.
+
+The web app supports manual selection translation and original-layout PDF
+selection via locally bundled Mozilla PDF.js. `POST /api/items/<KEY>/translate`
+accepts `text`, `context` and optionally owned `attachmentKey`/`page`. Exact
+glossary hits are local; other selections may call the configured model when
+not cached. Invoke it only for an explicit translation request, never merely
+because text is selected. Reuse per-paper translation caches, require an
+explicit action to translate again, and mock all model calls in software tests.
+See [translation research](references/translation-research.md) for project
+comparisons, licensing and current limitations.
+
+## On-demand concept lessons
+
+`GET /api/items/<KEY>/term-reading?term=<term>` opens saved lessons and source
+coverage for free. Only an explicit request to generate a concept lesson may
+call `POST /api/items/<KEY>/term-reading` with `term`, `force` and `repairOnly`.
+Never generate every term automatically. Reopening lessons and local repair
+must reuse existing data without model calls. `repairOnly:true` always forbids
+model calls, even when there is no saved draft.
+
+Use `scripts/term_reading.py` for term-specific teaching and evidence selection.
+Explain prerequisites, mechanisms, paper-specific uses, teaching examples,
+confusable concepts, limits and self-check questions. Keep background teaching
+separate from paper evidence; lexical matches alone do not establish usage.
+Cache each concept independently in ignored `data/term-reading/`, retain source
+and glossary versions, and keep previous successful lessons on failed retries.
+
 
 

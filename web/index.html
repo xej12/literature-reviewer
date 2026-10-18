@@ -4,7 +4,10 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Literature Reviewer</title>
-  <link rel="stylesheet" href="/static/styles.css?v=evidence-groups-2" />
+  <link rel="stylesheet" href="/static/vendor/pdfjs/web/pdf_viewer.css" />
+  <link rel="stylesheet" href="/static/styles.css?v=reading-cancel-1" />
+  <link rel="stylesheet" href="/static/translation.css?v=translation-1" />
+  <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
 </head>
 <body>
   <header class="topbar">
@@ -76,6 +79,13 @@
       <label class="setting-field"><span>API 地址</span><input id="setting-base-url" placeholder="https://api.openai.com/v1" /></label>
       <label class="setting-field"><span>模型名称</span><input id="setting-model" placeholder="gpt-4o-mini" /></label>
       <label class="setting-field"><span>API Key <em>留空则保留已保存的 Key</em></span><input id="setting-api-key" type="password" placeholder="sk-…" /></label>
+      <div class="generation-settings">
+        <h3>论文 / 术语深度解读</h3>
+        <label class="setting-field"><span>输出预算 <em>留空使用服务默认值，包含模型的思考用量</em></span><input id="setting-output-tokens" type="number" min="1024" max="393216" step="1024" placeholder="自动 · 推荐" /></label>
+        <label class="setting-field"><span>思考模式</span><select id="setting-thinking-mode"><option value="auto">跟随服务默认（推荐）</option><option value="low">较轻思考</option><option value="high">深入思考</option><option value="max">最大思考</option><option value="off">关闭思考</option></select></label>
+        <p id="generation-settings-hint" class="generation-settings-hint"></p>
+        <p class="generation-settings-hint">预算是单次请求的上限，按实际用量计费。调整后在论文中点击重新生成才会调用模型；不会自动重试。</p>
+      </div>
       <div id="settings-message" class="settings-message"></div>
       <div class="modal-actions"><button id="cancel-settings" class="text-button">取消</button><button id="save-settings" class="primary-button">保存配置</button></div>
     </div>
@@ -87,6 +97,11 @@
     </div>
   </div>
   <script src="/static/reading.js?v=evidence-groups-2"></script>
-  <script src="/static/app.js?v=evidence-groups-2"></script>
+  <script src="/static/vendor/katex/katex.min.js"></script>
+  <script src="/static/deep-reading.js?v=reading-cancel-1"></script>
+  <script src="/static/app.js?v=reading-cancel-1"></script>
+  <script src="/static/translation.js?v=term-reading-1"></script>
+  <script src="/static/pdf-reader.js?v=formula-source-1"></script>
+  <script src="/static/term-reading.js?v=term-reading-1"></script>
 </body>
 </html>
