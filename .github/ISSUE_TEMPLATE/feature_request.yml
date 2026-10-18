@@ -1,0 +1,23 @@
+name: 功能建议 / Feature request
+description: 说明希望改进的科研阅读场景。
+title: "[Feature] "
+body:
+  - type: textarea
+    id: scenario
+    attributes:
+      label: 使用场景与困难 / Scenario
+      description: 阅读什么类型的论文时遇到什么问题？请用可公开的例子说明。
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: 期望效果 / Desired outcome
+      description: 希望怎样操作、看到什么结果？
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 当前替代办法或相关项目 / Alternatives
+      description: 可选；可附开源项目链接，不要上传私人文献或 API Key。
