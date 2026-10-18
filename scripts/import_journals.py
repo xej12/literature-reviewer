@@ -32,7 +32,7 @@ def main():
         temporary = destination / (name + ".tmp")
         temporary.write_bytes(content)
         temporary.replace(destination / name)
-    print("已导入中科院 2025 与 JCR 2025 期刊数据（第三方整理，本机保存）。")
+    print("已导入中科院 2025 与 JCR 2025 期刊数据（第三方整理，本电脑保存）。")
 
 
 if __name__ == "__main__":

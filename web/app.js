@@ -49,7 +49,7 @@ function cancelAnalysisGeneration() {
   request.onCancel();
   // Aborting fetch alone does not stop the server's upstream model call.
   fetch(`/api/generations/${request.id}/cancel`, {method:'POST', keepalive:true}).then(response => {
-    if (!response.ok) throw Error('取消生成未送达服务器，请检查本机服务。');
+    if (!response.ok) throw Error('取消生成未送达服务器，请检查本电脑服务。');
   }).catch(error => showError(error));
 }
 window.addEventListener('pagehide', cancelAnalysisGeneration);
@@ -73,6 +73,10 @@ function renderCollections(collections) {
       state.collection = button.dataset.key;
       state.query = "";
       $("#search").value = "";
+      if (location.hash.startsWith('#/notes')) {
+        history.pushState(null, '', '#/library');
+        applyRoute();
+      }
       loadItems();
     };
   });
@@ -138,6 +142,7 @@ function renderDetail(item) {
     ${openableAttachment ? `<div class="reader-actions"><button id="read-attachment" class="primary-button">${attachmentLabel}</button>${item.url ? `<button id="open-source" class="text-button">打开来源网页 ↗</button>` : ""}</div>` : item.url ? `<div class="reader-actions"><button id="open-source" class="primary-button">打开来源网页 ↗</button></div>` : ""}
     <div class="analysis-actions"><button id="analyze-summary" class="primary-button">${(item.analysis?.summary || item.analysis?.deepReadingAvailable) ? "查看论文解读" : "论文深度解读"}</button><button id="extract-terms" class="secondary-button">${item.analysis?.terms ? "查看专业术语" : "提取专业术语"}</button>${pdf ? `<button id="analyze-figure" class="secondary-button">${hasFigureCache ? "查看图表解析" : "图表解析"}</button>` : ""}<span>${state.model?.configured ? `已配置：${escapeHtml(state.model.model)}` : "需配置模型"}</span></div>
     <div class="translation-tools">${pdf ? `<button id="selection-reader-button" class="secondary-button">划词阅读 PDF</button>` : ""}<button id="term-reading-button" class="secondary-button">术语精讲</button><button id="terminology-button" class="text-button">专业术语表</button><span>选中文字后点「翻译」；术语表命中免费，其他译文按文献保存。</span></div>
+    <div class="paper-notes-entry"><div><strong>我的阅读笔记</strong><p>把自己的理解、原文位置和待核实的问题记在这篇文献下。</p></div><button id="paper-write-note" class="secondary-button">写笔记 / 查看笔记</button></div>
     <dl class="facts">
       ${item.publicationTitle ? `<div><dt>期刊 / 来源</dt><dd>${escapeHtml(item.publicationTitle)}</dd></div>` : ""}
       ${item.date ? `<div><dt>日期</dt><dd>${escapeHtml(item.date)}</dd></div>` : ""}
@@ -149,12 +154,13 @@ function renderDetail(item) {
     <div class="detail-section"><div class="section-label">摘要</div><p class="abstract">${escapeHtml(item.abstract || "这篇文献没有记录摘要。")}</p></div>
     <div class="detail-section"><div class="section-label">附件</div>
       ${item.attachments?.length ? item.attachments.map(a => `<div class="attachment"><span class="pdf-icon">${escapeHtml(attachmentTypeLabel(a))}</span><span class="attachment-name">${escapeHtml(a.filename || "附件")}</span><em>${a.exists ? "已找到" : "未找到"}</em></div>`).join("") : `<p class="muted">暂无本地附件</p>`}
-      ${!pdf ? `<p class="attachment-hint">${item.attachments?.some(a => attachmentTypeLabel(a) === "PDF") ? "PDF 文件未在本机找到，请在 Zotero 中确认附件已下载。" : "此条目没有 PDF 附件。网页快照和 PDF 是不同文件，可先打开来源网页阅读；在 Zotero 添加 PDF 后刷新即可。"}</p>` : ""}
+      ${!pdf ? `<p class="attachment-hint">${item.attachments?.some(a => attachmentTypeLabel(a) === "PDF") ? "PDF 文件未在本电脑找到，请在 Zotero 中确认附件已下载。" : "此条目没有 PDF 附件。网页快照和 PDF 是不同文件，可先打开来源网页阅读；在 Zotero 添加 PDF 后刷新即可。"}</p>` : ""}
     </div>
     ${pdf ? `<div class="next-feature"><span>✦</span><div><strong>逐页理解</strong><br><small>可框选图表单独解析，结果会保存在当前文献下。</small></div></div>` : ""}
   `;
   $("#close-detail").addEventListener("click", closeDetail);
   wirePaperPriority(item);
+  $('#paper-write-note').addEventListener('click', () => window.notesWorkspace.forPaper(item));
   $("#toggle-authors")?.addEventListener("click", (event) => {
     const authors = $("#paper-authors");
     const expanded = authors.classList.toggle("expanded");
@@ -523,12 +529,28 @@ function selectItem(key) {
 }
 
 async function applyRoute() {
+  if (window.notesWorkspace && !await window.notesWorkspace.flush()) {
+    window.notesWorkspace.keepRoute();
+    return;
+  }
   const request = ++state.detailRequest;
   const match = location.hash.match(/^#\/items\/([A-Z0-9]+)$/);
+  const notesRoute = location.hash.startsWith('#/notes');
   const detail = $("#detail");
   $("#library").classList.toggle("hidden", Boolean(match));
   detail.classList.toggle("hidden", !match);
+  $('#library-content').classList.toggle('hidden', notesRoute);
+  $('#notes-workspace').classList.toggle('hidden', !notesRoute);
+  $('#nav-notes').classList.toggle('active', notesRoute);
+  $('#nav-library').classList.toggle('active', !notesRoute);
   closeAnalysis();
+  if (notesRoute) {
+    state.selected = null;
+    document.title = '我的笔记 · 文献梳理工具';
+    await window.notesWorkspace.route();
+    return;
+  }
+  window.notesWorkspace?.leave();
   if (!match) {
     const selectedKey = state.selected?.key;
     state.selected = null;
@@ -563,7 +585,7 @@ async function loadItems({ quiet = false } = {}) {
   const request = ++state.libraryRequest;
   state.libraryLoading = true;
   $("#refresh-library").disabled = true;
-  if (!quiet) $("#sync-status").textContent = "正在读取本机 Zotero 和已保存分析…";
+  if (!quiet) $("#sync-status").textContent = "正在读取本电脑 Zotero 和已保存分析…";
   try {
     const params = new URLSearchParams({ limit: "100", status: state.progressFilter, sort: state.readingSort, tier: state.readingTier, division: state.divisionFilter });
     if (state.collection) params.set("collection", state.collection);
@@ -582,7 +604,7 @@ async function loadItems({ quiet = false } = {}) {
     renderReadingContext(result);
     renderItems();
     state.lastSync = Date.now();
-    $("#sync-status").textContent = `${deletedCollection ? "当前集合已在 Zotero 删除，已切换全部文献。" : ""}本机更新于 ${new Date(state.lastSync).toLocaleTimeString("zh-CN", { hour12: false })} · 自动更新`;
+    $("#sync-status").textContent = `${deletedCollection ? "当前集合已在 Zotero 删除，已切换全部文献。" : ""}本电脑更新于 ${new Date(state.lastSync).toLocaleTimeString("zh-CN", { hour12: false })} · 自动更新`;
   } catch (error) {
     if (request !== state.libraryRequest) return;
     if (!state.lastSync) {
@@ -601,6 +623,7 @@ async function loadItems({ quiet = false } = {}) {
 
 async function boot() {
   try {
+    window.notesWorkspace?.init();
     await Promise.all([getJson("/api/model").then((model) => { state.model = model; }), loadItems()]);
     if (!location.hash) history.replaceState(null, "", "#/library");
     history.scrollRestoration = "manual";

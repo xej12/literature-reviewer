@@ -46,7 +46,7 @@ function paperPriority(item) {
     <div class="priority-title">${priorityBadge(item)}${p.score != null ? `<strong>${p.score} / 100</strong>` : ""}</div>
     <p class="priority-reason">${escapeHtml(p.reason || "尚未评价论文内容。")}</p>
     ${p.verificationNotice ? `<p class="priority-notice" role="status">${escapeHtml(p.verificationNotice)}</p>` : ""}
-    ${p.stale ? `<p class="priority-notice">研究方向或文献材料已更新，旧评估仍保存在本机。本页需要按当前材料重新判断。</p>` : ""}
+    ${p.stale ? `<p class="priority-notice">研究方向或文献材料已更新，旧评估仍保存在本电脑。本页需要按当前材料重新判断。</p>` : ""}
     ${p.signals?.length ? `<p class="priority-signals">相关性线索：${p.signals.map(escapeHtml).join("、")}（关键词匹配，不能据此判断必读）</p>` : `<p class="priority-signals">尚未匹配到研究关键词；这不表示论文没有阅读价值。</p>`}
     ${p.method === "model" ? `${p.score != null ? `<div class="priority-breakdown">相关性 ${p.relevance ?? "—"} / 60 · 内容价值 ${p.contentValue ?? "—"} / 30 · 期刊参考 ${p.journalPoints == null ? "缺失，不扣分，按内容归一化" : p.journalPoints + " / 10"}</div>` : ""}
       <details class="priority-evidence"><summary>${p.evidence?.length ? "核对评估依据与阅读范围" : "查看已保存答复与阅读范围"}</summary><p>${escapeHtml(p.basis || "")}</p>${(p.evidence || []).map(q => `<blockquote>${escapeHtml(q)}</blockquote>`).join("")}

@@ -36,6 +36,7 @@ import translation
 import term_reading
 import figure_reading
 import request_jobs
+import notes
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 WEB_DIR = SKILL_DIR / "web"
@@ -43,6 +44,7 @@ SETTINGS_PATH = SKILL_DIR / "data" / "settings.json"
 ANALYSIS_DIR = SKILL_DIR / "data" / "analysis"
 DEEP_READING_DIR = SKILL_DIR / "data" / "deep-reading"
 TERM_READING_DIR = SKILL_DIR / "data" / "term-reading"
+NOTES_DIR = SKILL_DIR / "data" / "notes"
 DEFAULT_PORT = int(os.environ.get("LITERATURE_REVIEWER_PORT", "8765"))
 
 
@@ -1057,6 +1059,16 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(parsed.path)
         params = parse_qs(parsed.query)
         try:
+            if path == "/api/note-templates":
+                self.send_json({"templates": notes.TEMPLATES})
+                return
+            if path == "/api/notes":
+                self.send_json(notes.listing(NOTES_DIR, params.get("q", [""])[0][:500], params.get("itemKey", [""])[0]))
+                return
+            note_match = re.fullmatch(r"/api/notes/([a-f0-9]{32})", path)
+            if note_match:
+                self.send_json(notes.load(NOTES_DIR, note_match[1]))
+                return
             if path == "/api/health":
                 if STORE is None:
                     self.send_json({"ok": False, "error": STARTUP_ERROR}, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -1202,6 +1214,38 @@ class Handler(BaseHTTPRequestHandler):
     def handle_post(self) -> None:
         parsed = urlparse(self.path)
         path = unquote(parsed.path)
+        note_match = re.fullmatch(r"/api/notes/([a-f0-9]{32})", path)
+        note_delete = re.fullmatch(r"/api/notes/([a-f0-9]{32})/delete", path)
+        if path == "/api/notes" or note_match or note_delete:
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 1_500_000:
+                    raise ValueError("笔记请求为空或过长")
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(payload, dict):
+                    raise ValueError("请提供笔记内容")
+                if note_delete:
+                    self.send_json(notes.delete(NOTES_DIR, note_delete[1], payload))
+                elif note_match:
+                    self.send_json(notes.update(NOTES_DIR, note_match[1], payload))
+                else:
+                    paper = None
+                    if payload.get("itemKey"):
+                        if STORE is None:
+                            raise RuntimeError(STARTUP_ERROR)
+                        paper = STORE.item(str(payload["itemKey"]))
+                        if not paper:
+                            raise FileNotFoundError("关联文献不存在")
+                    self.send_json(notes.create(NOTES_DIR, payload, paper), HTTPStatus.CREATED)
+            except notes.Conflict as exc:
+                self.send_json({"error": str(exc), "conflict": True}, HTTPStatus.CONFLICT)
+            except FileNotFoundError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            except (ValueError, TypeError, UnicodeError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except (RuntimeError, OSError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
+            return
         translate_match = re.fullmatch(r"/api/items/([A-Z0-9]+)/translate", path)
         if path == "/api/terminology" or translate_match:
             try:

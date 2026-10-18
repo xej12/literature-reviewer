@@ -32,7 +32,7 @@ def repair_format(text):
             continue
         if not quoted:
             if c == ',' and re.match(r"\s*[}\]]", text[i + 1:]):
-                notes.add("已在本机移除 JSON 末尾多余逗号。")
+                notes.add("已在本电脑移除 JSON 末尾多余逗号。")
                 i += 1
                 continue
             out.append(c)
@@ -71,7 +71,7 @@ def repair_format(text):
             invalid_escape = following not in '"\\/bfnrtu' or (following == 'u' and not valid_unicode)
             if invalid_escape or (tex_command and following not in '"/'):
                 out.append('\\\\')
-                notes.add("已在本机修复公式反斜杠的 JSON 转义。")
+                notes.add("已在本电脑修复公式反斜杠的 JSON 转义。")
                 i += 1
                 continue
             out.append(text[i:i + 2])
@@ -79,7 +79,7 @@ def repair_format(text):
             continue
         if ord(c) < 32:
             out.append(json.dumps(c)[1:-1])
-            notes.add("已在本机修复 JSON 字符串中的换行或控制字符。")
+            notes.add("已在本电脑修复 JSON 字符串中的换行或控制字符。")
         else:
             out.append(c)
         i += 1

@@ -32,7 +32,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Port 87
 
 **网页打不开 / 连接被拒绝：** 确认启动窗口还在运行，并使用窗口打印的地址。GitHub 页面不是运行中的文献工具。关闭窗口、关机后本地网页也会停止；再次启动即可。不要为了启动本地网页开放路由器端口。
 
-**“未找到 Zotero 数据目录”：** 在 Zotero 设置里找到直接含 `zotero.sqlite` 的目录，然后按 [指定目录步骤](installation.md#5-找不到-zotero-时指定数据目录) 设置 `ZOTERO_DATA_DIR`，重启服务。这里用的是本机数据库，Zotero Web 登录或 Zotero API Key 不能替代它。
+**“未找到 Zotero 数据目录”：** 在 Zotero 设置里找到直接含 `zotero.sqlite` 的目录，然后按 [指定目录步骤](installation.md#5-找不到-zotero-时指定数据目录) 设置 `ZOTERO_DATA_DIR`，重启服务。这里用的是本电脑数据库，Zotero Web 登录或 Zotero API Key 不能替代它。
 
 **集合或文献没更新：** 在 Zotero 中完成修改后，点击网页“刷新文献库”；仍不更新时重启本地服务并核对数据目录。不要移动或删除正在使用的 `zotero.sqlite`。
 
@@ -58,7 +58,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Port 87
 | HTTP 404 / model not found | 核对基础地址和精确模型 ID，勿在基础地址后重复填写 `/chat/completions` |
 | HTTP 429 / quota / insufficient balance | 检查服务商额度、余额与限速；不保证聊天产品订阅包含 API 余额 |
 | HTTP 400 / image input not supported | 当前模型可能不支持图像，图表功能需要支持图片输入的 Chat Completions 模型 |
-| `WinError 10013` / 套接字访问被拒绝 | 检查本机防火墙、组织网络、VPN/代理和服务商地址；确认 Python 被允许访问该地址。不要整体关闭防火墙；组织策略需联系管理员 |
+| `WinError 10013` / 套接字访问被拒绝 | 检查本电脑防火墙、组织网络、VPN/代理和服务商地址；确认 Python 被允许访问该地址。不要整体关闭防火墙；组织策略需联系管理员 |
 | 保存配置后仍使用旧地址或模型 | 检查启动终端是否设置了 `OPENAI_*` 或 `LITERATURE_REVIEWER_*` 覆盖变量，然后重启服务 |
 | 文字调用正常，图表/深读失败 | 基本文字接口可用不代表支持图片、长文或结构化输出；核对服务商能力和返回错误 |
 | 长时间等待 | 模型响应可能较慢；深读最长等待约 600 秒。不再需要时关闭解析窗口，避免反复点击重新生成 |
@@ -77,9 +77,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Port 87
 
 **反复要求生成：** 确认打开的是同一文献、同一章节/术语/图表区域；文献材料、术语表或相关设置版本变化可能影响缓存匹配。查看历史版本，确认没有换到新解压目录后遗失原 `data/`。
 
-**关闭后为什么还有费用：** 取消会中断本机请求并断开上游连接，已消耗的 Token 不能撤回，服务商是否立即停止生成和最终计费由其决定。
+**关闭后为什么还有费用：** 取消会中断本电脑请求并断开上游连接，已消耗的 Token 不能撤回，服务商是否立即停止生成和最终计费由其决定。
 
-**能让朋友直接访问我的地址吗：** `127.0.0.1` 总是指访问者自己的电脑。朋友应下载本项目并连接自己的 Zotero。当前无登录和多用户隔离，不要直接将本机服务暴露到公网。
+**能让朋友直接访问我的地址吗：** `127.0.0.1` 总是指访问者自己的电脑。朋友应下载本项目并连接自己的 Zotero。当前无登录和多用户隔离，不要直接将本电脑服务暴露到公网。
 
 ## 仍然没解决，如何反馈
 

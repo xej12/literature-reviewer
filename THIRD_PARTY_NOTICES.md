@@ -11,6 +11,7 @@
 | KaTeX | [0.16.22](https://github.com/KaTeX/KaTeX/releases/tag/v0.16.22) | 本地数学公式排版及字体 | [web/vendor/katex/LICENSE](web/vendor/katex/LICENSE)（MIT） |
 | PDF.js | [pdfjs-dist 5.4.149](https://www.npmjs.com/package/pdfjs-dist/v/5.4.149) / [源码](https://github.com/mozilla/pdf.js) | 原始版式 PDF 阅读、可选择文字层 | [web/vendor/pdfjs/LICENSE](web/vendor/pdfjs/LICENSE)（Apache-2.0） |
 | PDF.js 附带资源 | 随上述分发版本 | 字体、字符映射、色彩及图像解码 | 见下方资源许可 |
+| markdown-it | [15.0.3](https://www.npmjs.com/package/markdown-it/v/15.0.3) / [源码](https://github.com/markdown-it/markdown-it) | 本地笔记 Markdown 预览 | [web/vendor/markdown-it/LICENSE](web/vendor/markdown-it/LICENSE)（MIT） |
 
 PDF.js 资源原许可保留于：
 
@@ -39,6 +40,9 @@ Python 依赖由 [requirements.txt](requirements.txt) 声明：
 PDF、Zotero 元数据、个人术语表和模型生成记录由使用者提供或生成，不作为项目自带开放数据分发。能在本机阅读一篇论文，不自动代表有权把全文公开上传。
 
 ## 设计与工作流参考
+
+- [Better Notes for Zotero](https://github.com/windingwind/zotero-better-notes)：参考关联文献、模板与导出流程；未复制 AGPL 插件代码或模板。笔记模板由本项目自行编写。
+- [Vditor](https://github.com/Vanessa219/vditor)：参考编辑/预览与工具栏交互；当前没有集成其完整编辑器。见 [笔记调研](references/notes-research.md)。
 
 - [DeepPaperNote](https://github.com/917Dhj/DeepPaperNote)：参考证据组织、机制解释和材料覆盖的思路，在本应用中独立实现。
 - [Translate for Zotero](https://github.com/windingwind/zotero-pdf-translate)、[NextAI Translator](https://github.com/nextai-translator/nextai-translator)：参考手动触发、术语优先和原译文对照的交互，没有复制其源码。

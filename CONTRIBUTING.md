@@ -20,6 +20,7 @@
 
 ```powershell
 node tests/test_deep_math.cjs
+node tests/test_notes_render.cjs
 ```
 
 不需要 `npm install`。测试使用仓库自带资源，不应调用任何付费模型服务。改动启动器时，请额外用 `start.ps1 -Check` 和一个未使用端口试启动；不要关闭开发者已有的服务。
@@ -33,6 +34,7 @@ node tests/test_deep_math.cjs
 | `scripts/server.py` | 本地 HTTP 服务、Zotero 只读访问、模型配置与功能入口 |
 | `scripts/deep_reading.py`、`term_reading.py`、`figure_reading.py` | 论文、术语、图表的讲解结构与缓存处理 |
 | `scripts/translation.py` | 专业术语约定、翻译与缓存 |
+| `scripts/notes.py`、`web/notes.js` | 私人手写笔记、模板、版本冲突保护和本地导出 |
 | `scripts/model_output.py`、`generation.py` | 答复格式处理和生成参数 |
 | `scripts/request_jobs.py` | 生成任务取消、连接中断 |
 | `scripts/journal_metrics.py`、`reading_priority.py` | 期刊数据匹配和个人阅读优先级 |

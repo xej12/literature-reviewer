@@ -10,12 +10,12 @@
 | --- | --- | --- |
 | Windows、现代浏览器 | 必需 | 当前服务使用 Windows 注册表检测 Zotero 版本，其他系统尚不支持 |
 | Python 3.11+ | 必需 | 推荐 Python 3.11 或 3.12；无需安装 Codex |
-| Zotero 桌面版 | 必需 | 需要本机 `zotero.sqlite`，PDF 附件也应下载到本机 |
+| Zotero 桌面版 | 必需 | 需要本电脑 `zotero.sqlite`，PDF 附件也应下载到本电脑 |
 | 自己的模型 API | AI 功能需要 | 兼容 OpenAI **Chat Completions**；订阅聊天网站不等于拥有 API 额度 |
 | Poppler | 图表功能需要 | 提供 `pdfinfo.exe` 和 `pdftoppm.exe`，不包含在 Python 依赖里 |
 | Git、Node.js | 普通使用不需要 | Git 用于克隆/协作；Node.js 只用于开发时的前端测试 |
 
-从 [Zotero 官网](https://www.zotero.org/download/) 安装桌面版。在 Zotero 里打开一篇带 PDF 的论文，确认附件确实在本机。不需要开放 Zotero 本地 API，也不需要安装配套插件；本项目直接只读访问本机数据库。
+从 [Zotero 官网](https://www.zotero.org/download/) 安装桌面版。在 Zotero 里打开一篇带 PDF 的论文，确认附件确实在本电脑。不需要开放 Zotero 本地 API，也不需要安装配套插件；本项目直接只读访问本电脑数据库。
 
 ## 2. 下载并解压项目
 
