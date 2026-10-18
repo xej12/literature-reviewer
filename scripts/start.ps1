@@ -53,6 +53,9 @@ if ($Install) {
   Write-Host "Installing project dependencies..."
   & $executable -m pip install -r (Join-Path $projectRoot "requirements.txt")
   if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  # Prefer the archive included in the beginner ZIP; source downloads use
+  # the same pinned build and checksum. Ordinary startup never downloads.
+  & (Join-Path $PSScriptRoot 'install-poppler.ps1') -Download
 }
 if ($Check) {
   if ($Demo) { $env:LITERATURE_REVIEWER_DEMO = "1" }

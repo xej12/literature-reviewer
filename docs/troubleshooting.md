@@ -18,7 +18,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Check
 | 无法执行 PowerShell 脚本 | 按安装指南使用带 `-NoProfile -ExecutionPolicy Bypass -File` 的命令；它只影响该进程。组织策略仍可能限制运行 |
 | `WinError 10048` / 地址已占用 | 可能已有服务在运行，先尝试打开网页；或使用下面的备用端口 |
 | `ModuleNotFoundError: winreg` | 当前版本只支持 Windows；不要把 macOS/Linux 安装当成已支持的流程 |
-| 双击 `start.cmd` 后提示找不到 Python | 安装 Python 3.11+ 并按安装指南创建 `.venv`；当前项目不提供独立可执行安装包 |
+| 双击 `start.cmd` 后提示找不到 Python | 先安装 Python 3.11+，再双击 `setup.cmd`；新手 ZIP 包含 Poppler，但不包含 Python 本身 |
+| `Poppler archive failed its SHA256 integrity check` | 安装包可能损坏，重新下载新手 ZIP；不要跳过校验 |
+| `Poppler download` 失败 | 源码 ZIP 不含二进制，可改下载 Releases 中的新手 ZIP；有包时不需访问上游下载地址 |
+| `Incomplete Poppler install` | 关闭网站，把 `vendor/poppler/runtime` 重命名为 `runtime-old` 后再运行 `setup.cmd`；不要移动个人 `data/` |
 
 换一个端口，不影响原来的服务：
 
@@ -44,7 +47,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Port 87
 
 ## PDF 与图表
 
-**“Unable to get page count” / “Is poppler installed and in PATH?”：** Python 包 `pdf2image` 之外，还需安装 Poppler。新开终端分别运行 `pdfinfo -v` 和 `pdftoppm -v`；若命令找不到，检查 PATH 是否指向含这两个 EXE 的目录，并从该终端重启服务。
+**“Unable to get page count” / “Is poppler installed and in PATH?”：** 关闭网站后双击 `setup.cmd`，或按 [Poppler 自动安装说明](installation.md#安装-poppler图表功能需要) 单独补装，再重启。新手 ZIP 已包含 Poppler，源码 ZIP 会自动下载；无需手动修改系统 PATH。用上面的 `-Check` 检查项目是否找到工具，不要仅以终端直接输入 `pdfinfo` 是否成功判断。若工具已找到仍失败，请先尝试另一份正常 PDF。
 
 **原始 PDF 能打开，文字解读却提示无正文：** PDF 可能是扫描件、文字以轮廓绘制或提取失败。当前不提供 OCR；有文字层的 PDF 更适合全文深读。
 

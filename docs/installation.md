@@ -12,14 +12,14 @@
 | Python 3.11+ | 必需 | 推荐 Python 3.11 或 3.12；无需安装 Codex |
 | Zotero 桌面版 | 必需 | 需要本电脑 `zotero.sqlite`，PDF 附件也应下载到本电脑 |
 | 自己的模型 API | AI 功能需要 | 兼容 OpenAI **Chat Completions**；订阅聊天网站不等于拥有 API 额度 |
-| Poppler | 图表功能需要 | 提供 `pdfinfo.exe` 和 `pdftoppm.exe`，不包含在 Python 依赖里 |
+| Poppler | 自动配置 | Windows x64 新手 ZIP 已包含；`setup.cmd` 校验并解压，无需手动改 PATH |
 | Git、Node.js | 普通使用不需要 | Git 用于克隆/协作；Node.js 只用于开发时的前端测试 |
 
 从 [Zotero 官网](https://www.zotero.org/download/) 安装桌面版。在 Zotero 里打开一篇带 PDF 的论文，确认附件确实在本电脑。不需要开放 Zotero 本地 API，也不需要安装配套插件；本项目直接只读访问本电脑数据库。
 
 ## 2. 下载并解压项目
 
-打开 [仓库首页](https://github.com/xej12/literature-reviewer)，点击 **Code → Download ZIP**，右键解压。进入解压后含 `README.md`、`requirements.txt` 和 `scripts` 的那一层文件夹。
+推荐下载 [Windows x64 新手 ZIP（内含 Poppler）](https://github.com/xej12/literature-reviewer/releases/latest/download/literature-reviewer-windows-x64.zip)，右键解压。也可打开 [Releases](https://github.com/xej12/literature-reviewer/releases/latest)，在 Assets 选择 `literature-reviewer-windows-x64.zip`，不是自动生成的 Source code ZIP。进入解压后含 `setup.cmd`、`README.md` 和 `scripts` 的那一层文件夹。
 
 建议放在自己的普通可写目录，例如 `D:\tools\literature-reviewer`。实际解压目录可能叫 `literature-reviewer-main`，没有关系。不要放在 `Program Files` 或直接在 ZIP 中运行。
 
@@ -30,20 +30,23 @@ git clone https://github.com/xej12/literature-reviewer.git
 cd literature-reviewer
 ```
 
-两种下载方式任选一种。ZIP 用户不需要另外安装 Git。
+**Code → Download ZIP** 或 Git 克隆也可使用；这两种源码下载不含 Poppler 二进制，安装脚本会自动联网补齐。ZIP 用户不需要另外安装 Git。
 
-如果希望让脚本自动完成虚拟环境和依赖安装，可在项目根目录双击 `setup.cmd`，或运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Install`。这一步会下载 Python 依赖，完成后直接启动网站；普通 `start.cmd` 不会自动联网安装。
+安装好 Python 后，在项目根目录双击 **`setup.cmd`**：自动创建虚拟环境、联网安装 Python 依赖、校验并解压 Poppler，然后直接启动网站。使用新手 ZIP 时 Poppler 无需再下载；使用源码时会下载约 42 MiB 的固定版本并核验 SHA256。无需管理员权限或手动配置 PATH。普通 `start.cmd` 不会自动联网安装。
 
 ## 3. 安装 Python 与依赖
 
 从 [Python Windows 下载页](https://www.python.org/downloads/windows/) 安装 Python 3.11+。安装时勾选 **Add python.exe to PATH**。安装后关闭旧终端，重新打开 PowerShell。
 
-在项目文件夹空白处右键，选择“在终端中打开”；也可以在 PowerShell 中输入 `cd "你的项目路径"`。以下所有命令都在项目根目录执行，一次复制一行即可。
+**推荐：直接双击 `setup.cmd`，等待安装完成即可继续第 4 步。** 首次安装仍需联网获取 Python 依赖，因此新手包并非完全离线安装包。
+
+如需手动安装，在项目文件夹空白处右键选择“在终端中打开”；以下命令在项目根目录执行：
 
 ```powershell
 python --version
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-poppler.ps1 -Download
 ```
 
 第一行应显示 `Python 3.11` 或更高版本；依赖安装结束且没有报错后继续。若只有 `py` 命令可用，可把前两行的 `python` 换为 `py -3`，第三行保持原样。无需运行 `Activate.ps1`。
@@ -118,28 +121,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
 
 ## 安装 Poppler（图表功能需要）
 
-不装 Poppler 仍可先浏览文献、直接打开原始 PDF、进行文字提取与文字解读。图表预览/解析以及讲解中的原文页面图片依赖 Poppler。
+**运行过 `setup.cmd` 就已经配置好，不需要另装或编辑 PATH。** 固定版本、来源与 SHA256 在 [manifest.json](../vendor/poppler/manifest.json)；许可证与源码入口见 [Poppler 说明](../vendor/poppler/README.md)。支持 Windows x64，不支持 ARM64。
 
-1. 打开 [Poppler Windows 构建发布页](https://github.com/oschwartz10612/poppler-windows/releases)，下载其 ZIP 并解压。该页面是第三方 Windows 构建。
-2. 在解压目录内找到同时包含 `pdfinfo.exe` 和 `pdftoppm.exe` 的文件夹，通常是 `Library\bin`。
-3. 将这个 **bin 文件夹**加入 Windows 的用户 `Path` 环境变量，不是 ZIP 所在目录。
-4. 关闭旧启动窗口和终端，新开 PowerShell，验证：
+目录中 `vendor/poppler/windows-x64.zip` 是上游原始压缩包，安装时校验后解压到 `vendor/poppler/runtime/`。服务和环境检查会自动找到该目录，只调整当前进程的 PATH。终端直接输入 `pdfinfo` 找不到命令也不代表项目安装失败，应使用第 4 步环境检查。
 
-   ```powershell
-   pdfinfo -v
-   pdftoppm -v
-   ```
-
-5. 两个命令都能显示版本后，重新启动本项目，再试一个 PDF 的图表页。
-
-也可以只在当前终端临时添加目录，然后从同一终端启动：
+已有环境只想补装 Poppler，可执行：
 
 ```powershell
-$env:Path = "D:\tools\poppler\Library\bin;" + $env:Path
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-poppler.ps1 -Download
 ```
 
-示例路径要替换成实际目录。`pip install pdf2image` **不会**自动安装 Poppler。
+有包时直接解压，不下载；已有完整安装时只验证可执行文件。若下载失败，可下载新手 ZIP，或从清单中的固定上游地址获取原始 ZIP，放为 `vendor/poppler/windows-x64.zip` 后重试。校验失败时请重新下载，不要关闭校验。安装完成后重启网站。
+
+进阶用户仍可自行安装 Poppler 并配置用户 PATH；项目内没有运行时时才使用 PATH 中的版本。`pip install pdf2image` 本身不会安装 Poppler。
 
 ## 7. 可选：导入期刊分区数据
 

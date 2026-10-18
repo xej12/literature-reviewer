@@ -8,20 +8,14 @@ Literature discovery queries OpenAlex and Semantic Scholar for similar, referenc
 
 Select candidates in either discovery view to download RIS, BibTeX, or a Markdown reading list with source evidence and note prompts. Exports use cached metadata, keep selections across filters with an explicit hidden count, and exclude dismissed papers. RIS/BibTeX use generic record types; verify missing metadata after importing. Downloads do not automatically modify Zotero.
 
-**Current platform: Windows, Python 3.11+.** There is no standalone installer. macOS/Linux are not supported yet because the server imports Windows registry APIs. Codex, Node.js and Zotero plugins are not required for normal use. The interface and most documentation are currently in Chinese.
+**Current platform: Windows x64, Python 3.11+.** The [beginner ZIP includes Poppler](https://github.com/xej12/literature-reviewer/releases/latest/download/literature-reviewer-windows-x64.zip). Python and Zotero must be installed first; setup needs internet for Python packages. macOS/Linux/Windows ARM64 are not supported. Codex, Node.js and Zotero plugins are not required. The interface and most documentation are currently in Chinese.
 
 ## Quick start
 
 1. Install [Zotero](https://www.zotero.org/download/) and download at least one PDF attachment locally.
 2. Install [Python 3.11+](https://www.python.org/downloads/windows/) with “Add python.exe to PATH” selected.
-3. Download and extract this repository using **Code → Download ZIP**, or clone it with Git.
-4. Open PowerShell in the extracted project folder and run:
-
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
-   ```
+3. Download and extract the [Windows x64 beginner ZIP](https://github.com/xej12/literature-reviewer/releases/latest/download/literature-reviewer-windows-x64.zip). Select this asset, rather than GitHub's automatic “Source code” ZIP.
+4. Double-click `setup.cmd`. It creates `.venv`, installs Python dependencies, verifies/extracts bundled Poppler, and starts the app. No manual PATH edits or administrator privileges are needed. A source ZIP or Git checkout also supports `setup.cmd`, but downloads the same pinned Poppler build on first setup.
 
 5. Visit <http://127.0.0.1:8765>. Keep the terminal open. For later sessions, double-click `start.cmd`; stop with Ctrl+C.
 6. Open **模型设置** (Model settings). Enter your provider's Chat Completions base URL, exact model ID and API key. Do not append `/chat/completions` to the base URL. Saving is local; testing the connection makes a real request and may incur charges.
@@ -39,7 +33,7 @@ Check the environment without network or model calls:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Check
 ```
 
-For figure previews/analysis and source-page images, install [Poppler for Windows](https://github.com/oschwartz10612/poppler-windows/releases) and add the folder containing `pdfinfo.exe` and `pdftoppm.exe` (usually `Library\bin`) to your user PATH. Reopen the terminal and restart the server. Figure analysis also requires an image-capable model. Installing `pdf2image` alone does not install Poppler.
+Poppler is installed inside `vendor/poppler/runtime/`; only the server process PATH is adjusted. Normal `start.cmd` does not download anything. Run `setup.cmd` again to finish an incomplete setup. Figure analysis also requires an image-capable model. Back up your private `data/` before upgrading. See [third-party notices](THIRD_PARTY_NOTICES.md) for Poppler licensing and source access.
 
 ## Features and limits
 
@@ -48,7 +42,7 @@ For figure previews/analysis and source-page images, install [Poppler for Window
 - Selectable PDF text, a personal glossary and contextual translation.
 - Side-by-side figure explanations with optional region selection.
 - Local caches/history and reading priorities based primarily on your research goals and paper content.
-- Human-written notes with four templates, optional paper links, autosave, revision conflict protection, Markdown/standalone HTML export and browser print-to-PDF. These actions do not call a model. Notes are stored privately in `data/notes/`.
+- Blank notes with optional paper links, autosave, revision conflict protection, Markdown/standalone HTML export and browser print-to-PDF. Reading cards separately store selections, user-initiated questions, conversations and editable summaries. Viewing/saving does not call a model; sending a card question or generating its summary does.
 - Optional CAS/JCR journal data import: `.\.venv\Scripts\python.exe scripts/import_journals.py`. This downloads a pinned third-party dataset; it is not live official data, and SJR is not used as a replacement for JCR.
 
 Viewing cached results is free of model calls; generating, regenerating, uncached translation and connection tests may use your paid API. Closing an analysis window cancels local work and disconnects the upstream request; provider-side cancellation and billing remain provider-dependent. Scanned PDFs have no OCR support. Source locations help verification but do not guarantee correct explanations.

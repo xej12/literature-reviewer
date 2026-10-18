@@ -6,9 +6,11 @@ import os
 from pathlib import Path
 import shutil
 import sys
+import poppler_runtime
 
 
 def main() -> int:
+    poppler_runtime.configure()
     failures = 0
     print("Literature Reviewer - local environment check (no network/model calls)")
     if sys.platform != "win32":

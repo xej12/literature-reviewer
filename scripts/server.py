@@ -44,8 +44,10 @@ import discovery_joint
 import discovery_export
 import zotero_snapshot
 import secret_store
+import poppler_runtime
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
+poppler_runtime.configure(SKILL_DIR)
 WEB_DIR = SKILL_DIR / "web"
 SETTINGS_PATH = SKILL_DIR / "data" / "settings.json"
 ANALYSIS_DIR = SKILL_DIR / "data" / "analysis"

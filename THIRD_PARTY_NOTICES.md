@@ -31,7 +31,7 @@ Python 依赖由 [requirements.txt](requirements.txt) 声明：
 - [pypdf](https://github.com/py-pdf/pypdf)：PDF 文字提取，BSD-3-Clause。
 - [pdf2image](https://github.com/Belval/pdf2image)：调用 Poppler 渲染 PDF，MIT。
 - [Pillow](https://github.com/python-pillow/Pillow)：图像处理，HPND 等条款，以安装版本随附许可为准。
-- [Poppler](https://poppler.freedesktop.org/)：用户另行安装的 PDF 渲染工具，本项目不捆绑其可执行文件；其 GPL 等许可不由根 MIT 替代。[Windows 构建](https://github.com/oschwartz10612/poppler-windows)是第三方分发。
+- [Poppler](https://poppler.freedesktop.org/)：PDF 渲染工具，GPL-2.0-or-later。**Windows x64 新手 Release ZIP 捆绑未经修改的第三方 Windows 构建 26.09.0-0**；源码仓库仅跟踪安装脚本、版本清单和许可，安装时可自动下载同一构建。其 GPL 及各 DLL 的许可不由根 MIT 替代。版权、完整许可证、对应源码与构建补丁入口见 [vendor/poppler](vendor/poppler/README.md)。本项目通过独立命令行进程调用工具，未将 Poppler 链接进 Python 代码。
 
 ## 本机单独导入的数据
 

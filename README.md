@@ -6,7 +6,7 @@
 
 [新手安装](docs/installation.md) · [使用指南](docs/usage.md) · [常见问题](docs/troubleshooting.md) · [English](README.en.md)
 
-> 当前提供 Windows 源码版，需要 Python 3.11+ 和本电脑 Zotero。尚未提供安装包，也未支持 macOS/Linux。普通使用无需安装 Codex、Node.js 或 Zotero 插件。项目仍在迭代中。
+> 支持 Windows x64。推荐下载 [新手安装 ZIP（已含 Poppler）](https://github.com/xej12/literature-reviewer/releases/latest/download/literature-reviewer-windows-x64.zip)，解压后双击 `setup.cmd`。仍需先安装 Python 3.11+ 和本电脑 Zotero；首次安装 Python 依赖需要联网。无需手动配置 Poppler/PATH，也无需 Codex、Node.js 或 Zotero 插件。暂不支持 macOS/Linux/Windows ARM64。
 
 ## 可以帮你做什么
 
@@ -28,22 +28,16 @@
 ## 第一次使用，从这里开始
 
 1. **准备 Zotero。** 在 Zotero 中确认至少一篇论文的 PDF 能打开。仅有云端附件时，先把 PDF 下载到本电脑。
-2. **下载项目。** 点击本页上方 **Code → Download ZIP**，解压到普通可写文件夹，例如 `D:\tools\literature-reviewer`。不要直接在压缩包内运行。
+2. **下载安装包。** 下载 [Windows x64 新手 ZIP](https://github.com/xej12/literature-reviewer/releases/latest/download/literature-reviewer-windows-x64.zip)，解压到普通可写文件夹，例如 `D:\tools\literature-reviewer`。不要直接在压缩包内运行。请在 Releases 选择这个文件，而非自动生成的 Source code ZIP。
 3. **安装 Python 3.11 或更高版本。** 从 [Python 官网](https://www.python.org/downloads/windows/)下载安装，安装时勾选 **Add python.exe to PATH**，随后重新打开 PowerShell。
-4. **安装项目依赖。** 在解压后的项目文件夹打开 PowerShell，依次执行：
-
-   ```powershell
-   python -m venv .venv
-   .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-   powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1
-   ```
+4. **一键安装并启动。** 双击解压后的 `setup.cmd`。它会创建项目自己的 `.venv`、联网安装 Python 依赖、校验并解压包内 Poppler，然后启动网站。无需管理员权限，也不会修改系统 PATH。
 
 5. **打开网页。** 浏览器访问 <http://127.0.0.1:8765>。启动窗口需要保持打开；以后双击项目根目录的 `start.cmd` 即可启动。
-6. **先验证文献，再配置模型。** 能看见文献并打开 PDF 后，点击右上角“模型设置”，填写自己的 API 地址、模型名称和 Key。图表解析还需要 [安装 Poppler](docs/installation.md#安装-poppler图表功能需要) 和支持图片输入的模型。
+6. **先验证文献，再配置模型。** 能看见文献并打开 PDF 后，点击右上角“模型设置”，填写自己的 API 地址、模型名称和 Key。Poppler 已由上一步配置好；图表解析还需要支持图片输入的模型。
 
 没有 Zotero 或只想先试用界面时，可以运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start.ps1 -Demo`。示例模式提供一篇内置题录和短示例 PDF，不读取本机文件、不连接模型；体验结束后按正常命令启动即可切回自己的 Zotero。
 
-也可以双击 `setup.cmd`，它会创建项目自己的 `.venv` 并安装依赖；安装依赖需要网络，只在你明确运行 setup 时发生。
+从 **Code → Download ZIP** 或 Git 克隆获取源码也可以双击 `setup.cmd`；源码不含 Poppler 二进制，会自动下载固定版本并校验 SHA256。普通 `start.cmd` 不会联网安装依赖。升级前请自行备份原目录中的 `data/`，安装包不包含你的文献和设置。
 
 如果 `python` 命令找不到、Zotero 目录没有被识别，或不知道 API 地址怎么填，请跟着 [完整安装指南](docs/installation.md) 操作。上面命令无需激活虚拟环境，也无需管理员权限。
 

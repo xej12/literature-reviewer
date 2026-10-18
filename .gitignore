@@ -22,3 +22,9 @@ venv/
 !.env.example
 .DS_Store
 Thumbs.db
+.build/
+dist/
+vendor/poppler/*.zip
+vendor/poppler/*.download
+vendor/poppler/runtime/
+vendor/poppler/.install-*/
