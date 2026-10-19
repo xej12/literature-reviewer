@@ -24,6 +24,8 @@ venv/
 Thumbs.db
 .build/
 dist/
+.updates/
+release-files.json
 vendor/poppler/*.zip
 vendor/poppler/*.download
 vendor/poppler/runtime/

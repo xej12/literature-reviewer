@@ -74,7 +74,7 @@ if ($dependencyExit -ne 0) {
   exit 1
 }
 
-$serverArguments = @((Join-Path $PSScriptRoot "server.py"))
+$serverArguments = @((Join-Path $PSScriptRoot "launch.py"))
 if ($Port -gt 0) { $serverArguments += "$Port" }
 if ($Demo) { $env:LITERATURE_REVIEWER_DEMO = "1"; Write-Host "Demo mode: no Zotero directory or model requests will be used." }
 Write-Host "Open the local URL printed below in your browser. Keep this window open; Ctrl+C stops the server."

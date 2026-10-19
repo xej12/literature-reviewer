@@ -1,0 +1,20 @@
+#updates-button { position:relative; }
+#update-dot { position:absolute; top:5px; right:5px; width:7px; height:7px; border-radius:50%; background:#d95f3b; box-shadow:0 0 0 2px white; }
+#update-dot[hidden] { display:none; }
+#update-modal { z-index:80; padding:14px; min-width:0; }
+#update-modal .update-card { width:min(660px,100%); min-width:0; max-height:calc(100dvh - 28px); overflow:auto; color:var(--workspace-ink); }
+.update-version-row { display:flex; flex-wrap:wrap; justify-content:space-between; gap:10px; padding:15px 0; font-size:13px; color:var(--workspace-muted); border-bottom:1px solid var(--workspace-border); }
+.update-version-row strong { color:var(--workspace-ink); }
+#update-status { font-size:15px; line-height:1.7; margin:20px 0 12px; }
+#update-progress { display:block; width:100%; height:10px; accent-color:var(--workspace-accent); }
+#update-progress.hidden { display:none; }
+.update-reason { padding:12px 14px; background:#f6f5fb; border:1px solid #e7e4f3; border-radius:8px; font-size:12px; line-height:1.8; }
+.update-preserve { margin-top:18px; color:var(--workspace-muted); font-size:12px; line-height:1.9; }
+.update-notes { margin:18px 0; border:1px solid var(--workspace-border); border-radius:8px; }
+.update-notes summary { padding:12px 14px; cursor:pointer; font-size:13px; }
+.update-notes pre { margin:0; padding:0 14px 14px; font-family:inherit; white-space:pre-wrap; overflow-wrap:anywhere; max-height:240px; overflow:auto; font-size:12px; line-height:1.9; }
+.update-actions { display:flex; flex-wrap:wrap; align-items:center; gap:10px; }
+.update-actions a { margin-right:auto; color:var(--workspace-accent); font-size:12px; }
+.update-error { color:#a73535; padding:10px 12px; border:1px solid #efcece; border-radius:8px; background:#fff7f7; font-size:13px; line-height:1.8; }
+#update-modal[aria-busy=true] .close-button { opacity:.4; cursor:wait; }
+@media(max-width:640px) { .topbar .top-actions { gap:5px; } .topbar #updates-button { padding:8px; } #updates-button span { display:none; } .update-actions a { width:100%; margin:0 0 8px; } }

@@ -108,6 +108,7 @@ function renderCardDetail(card) {
   const view=$('#card-detail-view'); if(!view)return;
   $('#cards-grid').classList.add('hidden'); view.classList.remove('hidden');
   view.innerHTML=`<button id="card-detail-back" class="back-button">← 返回我的卡片</button><div class="card-detail-heading"><div><div class="eyebrow">READING CARD</div><h2>${escapeHtml(card.title || '未命名卡片')}</h2><p>${escapeHtml(card.paper?.title || card.source || '独立卡片')}</p></div><button id="card-detail-delete" class="text-button card-delete-action">删除卡片</button></div><section class="card-original"><div class="card-section-label">保存的原文</div><blockquote>${escapeHtml(card.content)}</blockquote>${card.source?`<small>来源：${escapeHtml(card.source)}</small>`:''}</section><section class="card-qa"><div class="card-section-heading"><div><div class="card-section-label">围绕卡片提问</div><p>只有点击“发送问题”才会调用模型。</p></div></div><div id="card-conversation" class="card-conversation"></div><form id="card-question-form" class="card-question-form"><textarea id="card-question" aria-label="围绕卡片提出问题" maxlength="4000" rows="3" placeholder="例如：这里的 coronagraph 在本文中具体承担什么作用？"></textarea><button class="primary-button" type="submit">发送问题</button></form><p id="card-detail-status" class="card-detail-status hidden" role="status"></p></section><section class="card-summary-editor"><div class="card-section-heading"><div><div class="card-section-label">显示在卡片表面的总结</div><p>总结需要你主动点击生成，也可以直接修改后保存。</p></div><div class="card-summary-actions"><button id="card-generate-summary" class="secondary-button" type="button">总结当前内容</button><button id="card-save-summary" class="text-button" type="button">保存修改</button></div></div><textarea id="card-summary-input" aria-label="卡片总结，可自行修改" maxlength="20000" rows="6" placeholder="尚未生成总结；你也可以直接填写。">${escapeHtml(card.summary || '')}</textarea><p id="card-summary-status" class="card-detail-status hidden" role="status"></p></section>`;
+  $('#card-summary-input').dataset.savedSummary=card.summary || '';
   renderCardConversation(card);
   $('#card-detail-back').onclick=()=>navigateCards();
   $('#card-detail-delete').onclick=()=>deleteReadingCard(card.id,true);
@@ -131,7 +132,7 @@ async function summarizeReadingCard(cardId) {
   button.disabled=true; cardDetailStatus('正在总结当前内容，模型调用完成前请勿关闭页面。',false,'summary');
   try {
     const result=await postJson(`/api/cards/${cardId}`,{action:'summarize'});
-    notebook.cards=notebook.cards.map(card=>card.id===cardId?result.card:card); $('#card-summary-input').value=result.summary || ''; cardDetailStatus('总结已保存，可继续手动修改。',false,'summary');
+    notebook.cards=notebook.cards.map(card=>card.id===cardId?result.card:card); $('#card-summary-input').value=result.summary || ''; $('#card-summary-input').dataset.savedSummary=result.summary || ''; cardDetailStatus('总结已保存，可继续手动修改。',false,'summary');
     paintCardsWorkspace(notebook.cards);
   } catch(error) { cardDetailStatus(`总结失败：${error.message}`,true,'summary'); }
   finally { button.disabled=false; }
@@ -141,7 +142,7 @@ async function saveReadingCardSummary(cardId) {
   button.disabled=true; cardDetailStatus('正在保存修改…',false,'summary');
   try {
     const result=await postJson(`/api/cards/${cardId}`,{summary:input.value});
-    notebook.cards=notebook.cards.map(card=>card.id===cardId?result:card); input.value=result.summary || ''; cardDetailStatus('总结修改已保存。',false,'summary'); paintCardsWorkspace(notebook.cards);
+    notebook.cards=notebook.cards.map(card=>card.id===cardId?result:card); input.value=result.summary || ''; input.dataset.savedSummary=result.summary || ''; cardDetailStatus('总结修改已保存。',false,'summary'); paintCardsWorkspace(notebook.cards);
   } catch(error) { cardDetailStatus(`保存失败：${error.message}`,true,'summary'); }
   finally { button.disabled=false; }
 }

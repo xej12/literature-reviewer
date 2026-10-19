@@ -38,6 +38,7 @@ Poppler is installed inside `vendor/poppler/runtime/`; only the server process P
 ## Features and limits
 
 - A shared reading workspace for the library, blank notes, reading cards and joint discovery, with saved-analysis progress and responsive layouts.
+- From v0.4.0 portable Windows packages: stable-release checks and an explicit one-click update, checksum verification, restart checks and automatic program rollback. Personal data, virtual environments and installed Poppler are preserved.
 - Read-only Zotero browsing, collection filters and direct original PDF access.
 - On-demand paper chapters and terminology lessons with source snippets, formula rendering and PDF page navigation.
 - Selectable PDF text, a personal glossary and contextual translation.
@@ -49,6 +50,12 @@ Poppler is installed inside `vendor/poppler/runtime/`; only the server process P
 Chapter and terminology readers provide independently scrolling navigation and text, saved progress and expandable source coverage. Figure analysis shows the page and explanation side by side on wide screens, with independent scrolling and page arrows beside the image; narrow screens stack the panels. Selection actions appear vertically and move above the selection when space below is limited.
 
 After a source update, use **Ctrl+F5** if the browser still displays old styles. Release ZIPs contain the version associated with their release; newer interface changes may first be available in the source repository. Back up private `data/` before updating.
+
+## Updating
+
+Open **软件更新** (Software update) at the top right. Automatic checks are cached for 24 hours and only contact this project's public GitHub Releases; they do not use your model key or send papers. Installation starts only after you click **立即更新**. Keep the terminal open while the launcher verifies, replaces and restarts the program. If replacement or the new server's startup check fails, it restores the old program. The last changed-program backup is retained under `.updates/last-backup/`; this is not a backup of your private data.
+
+Versions v0.3.0 and earlier need one manual upgrade to a package with the updater: back up `data/`, extract the new package into a new directory, transfer `data/`, then run `setup.cmd`. The updater refuses Git checkouts, modified program files and source ZIPs without the release manifest. Changes to Python dependencies or the Poppler version require a manual upgrade; the UI explains this before stopping the old server. Finish active generation/search/save requests and save card edits first. No update alters the Zotero library.
 
 Viewing cached results is free of model calls; generating, regenerating and uncached translation may use your paid API. Connection tests only check `/models`. Closing an analysis window cancels local work and disconnects the upstream request; provider-side cancellation and billing remain provider-dependent. Scanned PDFs have no OCR support. Source locations help verification but do not guarantee correct explanations.
 

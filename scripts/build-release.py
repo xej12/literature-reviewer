@@ -32,17 +32,24 @@ def build(poppler: Path, output: Path) -> Path:
             if not {'pdfinfo.exe', 'pdftoppm.exe'} <= names:
                 raise ValueError('Poppler archive is missing required tools')
         output.parent.mkdir(parents=True, exist_ok=True)
+        release_files = {}
+        version = json.loads(tracked.read('version.json'))['version']
         with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED) as release:
             for name in tracked.namelist():
                 if name.endswith('/'):
                     continue
                 # Refuse accidental private-data commits instead of releasing them.
                 parts = PurePosixPath(name).parts
-                if parts[0] in {'data', '.venv', 'venv', '.git', '.build', 'dist'} or parts[0].startswith('.env'):
+                if parts[0] in {'data', '.venv', 'venv', '.git', '.build', 'dist', '.updates'} or parts[0].startswith('.env') or name == 'release-files.json':
                     raise ValueError(f'Private/build file tracked in Git: {name}')
-                release.writestr(PREFIX + name, tracked.read(name))
+                content = tracked.read(name)
+                release.writestr(PREFIX + name, content)
+                release_files[name] = hashlib.sha256(content).hexdigest()
             # Preserve upstream's original archive and embedded notices byte-for-byte.
             release.write(poppler, PREFIX + 'vendor/poppler/windows-x64.zip', compress_type=zipfile.ZIP_STORED)
+            release_files['vendor/poppler/windows-x64.zip'] = digest
+            release.writestr(PREFIX + 'release-files.json', json.dumps(
+                {'format': 1, 'version': version, 'files': release_files}, ensure_ascii=False, indent=2))
     with output.open('rb') as stream:
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
     checksum = output.with_suffix('.zip.sha256')

@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/static/workspace.css?v=workspace-1" />
   <link rel="stylesheet" href="/static/research-pages.css?v=research-pages-1" />
   <link rel="stylesheet" href="/static/reading-views.css?v=reading-views-1" />
+  <link rel="stylesheet" href="/static/updates.css?v=updates-1" />
 </head>
 <body>
   <!-- Selected Lucide SVGs; licenses in /static/vendor/lucide/LICENSE. -->
@@ -79,7 +80,7 @@
       <span class="workspace-brand-mark" aria-hidden="true"><svg class="workspace-icon"><use href="#workspace-icon-book-open"></use></svg></span>
       <div><h1>文献梳理工具</h1><p>你的科研阅读工作台</p></div>
     </div>
-    <div class="top-actions"><div id="health" class="health pending" role="status">正在连接 Zotero…</div><button id="settings-button" class="settings-button" aria-label="模型设置"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-settings-2"></use></svg><span>模型设置</span></button></div>
+    <div class="top-actions"><div id="health" class="health pending" role="status">正在连接 Zotero…</div><button id="updates-button" class="settings-button" aria-label="检查软件更新"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-refresh-cw"></use></svg><span>软件更新</span><i id="update-dot" hidden></i></button><button id="settings-button" class="settings-button" aria-label="模型设置"><svg class="workspace-icon" aria-hidden="true"><use href="#workspace-icon-settings-2"></use></svg><span>模型设置</span></button></div>
   </header>
   <main id="library" class="layout">
     <aside class="sidebar">
@@ -146,6 +147,19 @@
   <main id="detail" class="detail hidden" aria-label="文献详情"></main>
   <main id="discovery-workspace" class="discovery-workspace hidden" aria-label="发现相关文献"></main>
   <main id="joint-workspace" class="discovery-workspace hidden" aria-label="联合查找文献"></main>
+  <div id="update-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="update-title">
+    <section class="modal-card update-card">
+      <div class="modal-head"><div><div class="eyebrow">SOFTWARE UPDATE</div><h2 id="update-title">软件更新</h2></div><button id="close-update" class="close-button" aria-label="关闭软件更新">×</button></div>
+      <div class="update-version-row"><span>当前版本 <strong id="update-current">读取中…</strong></span><span id="update-latest"></span></div>
+      <p id="update-status" role="status" aria-live="polite">正在读取版本信息…</p>
+      <progress id="update-progress" max="100" class="hidden" aria-label="安装包下载进度"></progress>
+      <p id="update-reason" class="update-reason hidden"></p>
+      <details id="update-notes-wrap" class="update-notes hidden"><summary>查看更新说明</summary><pre id="update-notes"></pre></details>
+      <p class="update-preserve">更新会保留 API 设置、笔记、卡片和已保存解读。下载时请保留运行窗口；安装完成后页面会重新连接。检查更新不消耗模型 Token。</p>
+      <p id="update-error" class="update-error hidden" role="alert"></p>
+      <div class="modal-actions update-actions"><a id="update-release-link" href="https://github.com/xej12/literature-reviewer/releases/latest" target="_blank" rel="noopener noreferrer">GitHub 发布页面 ↗</a><button id="check-update" class="secondary-button">检查更新</button><button id="install-update" class="primary-button hidden">立即更新</button><button id="reload-update" class="primary-button hidden">刷新并使用新版</button></div>
+    </section>
+  </div>
   <div id="research-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="research-title">
     <div class="modal-card research-modal-card">
       <div class="modal-head"><h2 id="research-title">我的研究方向</h2><button id="close-research" class="close-button" aria-label="关闭研究方向设置">×</button></div>
@@ -202,9 +216,10 @@
   <script src="/static/pdf-reader.js?v=formula-source-1"></script>
   <script src="/static/term-reading.js?v=term-reading-1"></script>
   <script src="/static/vendor/markdown-it/markdown-it.min.js"></script>
-  <script src="/static/notes.js?v=research-pages-1"></script>
+  <script src="/static/notes.js?v=updates-1"></script>
   <script src="/static/discovery-export.js?v=discovery-3"></script>
   <script src="/static/discovery.js?v=discovery-3"></script>
   <script src="/static/joint-discovery.js?v=discovery-3"></script>
+  <script src="/static/updates.js?v=updates-1"></script>
 </body>
 </html>

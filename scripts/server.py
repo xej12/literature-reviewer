@@ -8,6 +8,7 @@ import mimetypes
 import math
 import os
 import re
+import secrets
 import sqlite3
 import sys
 import threading
@@ -45,6 +46,7 @@ import discovery_export
 import zotero_snapshot
 import secret_store
 import poppler_runtime
+import updater
 
 SKILL_DIR = Path(__file__).resolve().parents[1]
 poppler_runtime.configure(SKILL_DIR)
@@ -56,6 +58,8 @@ TERM_READING_DIR = SKILL_DIR / "data" / "term-reading"
 NOTES_DIR = SKILL_DIR / "data" / "notes"
 CARDS_DIR = SKILL_DIR / "data" / "cards"
 DEFAULT_PORT = int(os.environ.get("LITERATURE_REVIEWER_PORT", "8765"))
+APP_INSTANCE = os.environ.get('LITERATURE_REVIEWER_INSTANCE') or uuid.uuid4().hex
+UPDATES = updater.Updater(SKILL_DIR, supervised=os.environ.get('LITERATURE_REVIEWER_LAUNCHER') == '1')
 
 
 def paper_doi(item: dict[str, Any]) -> str:
@@ -1230,6 +1234,15 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(parsed.path)
         params = parse_qs(parsed.query)
         try:
+            if path == '/api/app':
+                self.send_json({'ok': True, 'app': 'literature-reviewer', 'version': updater.current_version(SKILL_DIR), 'instanceId': APP_INSTANCE})
+                return
+            if path == '/api/update':
+                if self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'):
+                    self.send_json({'error': '请通过本电脑地址访问更新设置。'}, HTTPStatus.FORBIDDEN)
+                    return
+                self.send_json(UPDATES.status())
+                return
             if path == '/api/discovery/settings':
                 self.send_json(discovery.public_settings())
                 return
@@ -1416,14 +1429,39 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         try:
+            update_path = urlparse(self.path).path
+            if update_path in ('/api/update/check', '/api/update/start'):
+                # A random per-process token and strict loopback Origin prevent
+                # other websites from triggering local code replacement.
+                host = self.headers.get('Host', '')
+                origin = self.headers.get('Origin')
+                if (host not in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}')
+                    or origin not in (None, 'http://' + host)
+                    or not secrets.compare_digest(self.headers.get('X-Update-Token', ''), UPDATES.token)):
+                    self.send_json({'error': '更新请求来源无效，请刷新本电脑页面后重试。'}, HTTPStatus.FORBIDDEN)
+                    return
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 1000: raise ValueError('更新请求格式无效')
+                payload = json.loads(self.rfile.read(length))
+                if not isinstance(payload, dict): raise ValueError('更新请求格式无效')
+                self.send_json(UPDATES.check(payload.get('force') is True) if update_path.endswith('/check')
+                               else UPDATES.start(payload.get('version')), HTTPStatus.ACCEPTED)
+                return
             cancel_match = re.fullmatch(r'/api/generations/([a-f0-9]{32})/cancel', urlparse(self.path).path)
             if cancel_match:
                 self.send_json(request_jobs.cancel(cancel_match[1]))
                 return
-            with request_jobs.scope(self.headers.get('X-Generation-ID')):
-                self.handle_post()
+            with UPDATES.mutation():
+                with request_jobs.scope(self.headers.get('X-Generation-ID')):
+                    self.handle_post()
+        except updater.Busy as exc:
+            self.send_json({'error': str(exc)}, HTTPStatus.CONFLICT)
         except request_jobs.Cancelled:
             self.send_json({'cancelled':True})
+        except RuntimeError as exc:
+            self.send_json({'error': str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
+        except OSError:
+            self.send_json({'error': '无法写入更新目录，请检查安装目录权限和剩余空间。'}, HTTPStatus.INTERNAL_SERVER_ERROR)
         except ValueError as exc:
             self.send_json({'error':str(exc)}, HTTPStatus.BAD_REQUEST)
 
@@ -1709,11 +1747,16 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def main() -> None:
+def main() -> int:
     port = DEFAULT_PORT
     if len(sys.argv) > 1:
         port = int(sys.argv[1])
     server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    updating = threading.Event()
+    def handoff():
+        updating.set()
+        server.shutdown()
+    UPDATES.on_ready = handoff
     print(f"Literature Reviewer running at http://127.0.0.1:{port}")
     if STORE:
         print(f"Zotero: {STORE.data_dir} (version {STORE.version or 'unknown'})")
@@ -1725,7 +1768,8 @@ def main() -> None:
         print("\nStopped.")
     finally:
         server.server_close()
+    return 75 if updating.is_set() else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
