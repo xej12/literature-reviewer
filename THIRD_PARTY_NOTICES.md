@@ -13,6 +13,7 @@
 | PDF.js 附带资源 | 随上述分发版本 | 字体、字符映射、色彩及图像解码 | 见下方资源许可 |
 | markdown-it | [15.0.3](https://www.npmjs.com/package/markdown-it/v/15.0.3) / [源码](https://github.com/markdown-it/markdown-it) | 本地笔记 Markdown 预览 | [web/vendor/markdown-it/LICENSE](web/vendor/markdown-it/LICENSE)（MIT） |
 | Lucide（精选 SVG） | [固定源码提交 1ef60af](https://github.com/lucide-icons/lucide/tree/1ef60af944de207e0d5176905a0759ba12e6ee8d) | 工作台导航及文献列表图标，作为 SVG sprite 内嵌于页面 | [web/vendor/lucide/LICENSE](web/vendor/lucide/LICENSE)（ISC，部分图标沿用 Feather MIT） |
+| Radix Colors（精选色值） | [固定源码提交 dbdb854](https://github.com/radix-ui/colors/blob/dbdb85470547c7d34b9001f48fddb08ded335979/src/dark.ts) | 文献库深色主题采用 Slate 中性色阶，其他语义色按本项目适配；未引入完整 npm 包 | [web/vendor/radix-colors/LICENSE](web/vendor/radix-colors/LICENSE)（MIT） |
 
 PDF.js 资源原许可保留于：
 
@@ -42,7 +43,8 @@ PDF、Zotero 元数据、个人术语表和模型生成记录由使用者提供�
 
 ## 设计与工作流参考
 
-- [Tabler](https://github.com/tabler/tabler)（MIT）、[shadcn/ui](https://github.com/shadcn-ui/ui)（MIT）：参考工作台布局、组件层级、间距与导航状态；当前工作台样式独立编写，未引入完整 Bootstrap/React 框架。[Radix Colors](https://github.com/radix-ui/colors)（MIT）用于配色系统调研，当前颜色由本项目在 CSS 变量中定义。
+- [Tabler](https://github.com/tabler/tabler)（MIT）、[shadcn/ui](https://github.com/shadcn-ui/ui)（MIT）：参考工作台布局、组件层级、间距与导航状态；当前工作台样式独立编写，未引入完整 Bootstrap/React 框架。
+- [GoogleChromeLabs/dark-mode-toggle](https://github.com/GoogleChromeLabs/dark-mode-toggle)（Apache-2.0）：参考主题选择、系统偏好、持久化及首屏闪白处理思路；切换逻辑由本项目独立实现，未复制其代码或分发该组件。Dark Reader 与 Darkmode.js 仅用于方案比较，未集成。
 
 - [Local Citation Network](https://github.com/LocalCitationNetwork/LocalCitationNetwork.github.io)、[semanticscholar](https://github.com/danielnsilva/semanticscholar)、[PyAlex](https://github.com/J535D165/pyalex)、[Zotero Research Assistant](https://github.com/qiobn/zotero-research-assistant)、[Inciteful Zotero Plugin](https://github.com/inciteful-xyz/inciteful-zotero-plugin)：文献发现与引用关系的调研参考。当前独立实现公开 API 适配器，没有复制这些项目的源码或安装其完整系统，见 [调研与实现范围](references/discovery-research.md)。
 

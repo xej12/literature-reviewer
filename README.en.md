@@ -4,6 +4,8 @@
 
 A local web app for reading papers from your own Zotero desktop library. Generate explanations of methods, formulas, terminology and figures on demand, compare them with the original PDF, and revisit saved results without regenerating them.
 
+The header appearance control offers Light, Dark and System modes and remembers your choice in this browser. Dark mode covers the library, paper details, explanations, terminology, figure analysis, notes, cards, related-paper views and settings. PDF toolbars and surrounding surfaces follow the theme; original PDF pages, figure images and equation crops keep their original colors. Exported notes retain their separate print styling.
+
 Literature discovery queries OpenAlex and Semantic Scholar for similar, referenced and citing papers, with source links, library badges and saved results. Open a paper and choose **查找相关文献**, or use **联合查找** in the sidebar to combine 2–5 papers with a research question. Joint discovery includes year/review/open-access filters, reversible dismissal and saved search groups. It does not call an LLM; external services may require separate API keys and impose quotas. See the [usage guide](docs/usage.md#发现相关文献).
 
 Select candidates in either discovery view to download RIS, BibTeX, or a Markdown reading list with source evidence and note prompts. Exports use cached metadata, keep selections across filters with an explicit hidden count, and exclude dismissed papers. RIS/BibTeX use generic record types; verify missing metadata after importing. Downloads do not automatically modify Zotero.
