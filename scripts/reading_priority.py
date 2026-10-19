@@ -11,10 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PROFILE_PATH = ROOT / "data/research.json"
 CACHE_DIR = ROOT / "data/reading-priority"
 TIERS = ["夯", "顶级", "人上人", "NPC", "拉"]
-DEFAULT_PROFILE = {
-    "goal": "理解高对比度成像中的自适应光学、波前感知与控制及日冕仪方法，服务于系外行星直接成像研究。",
-    "topics": "高对比度成像 | high contrast imaging | high-contrast imaging\n自适应光学 | adaptive optics\n波前感知 | wavefront sensing\n波前控制 | wavefront control\n日冕仪 | coronagraph | coronagraphy | coronagraphic\n系外行星直接成像 | direct imaging | exoplanet imaging",
-}
+DEFAULT_PROFILE = {"goal": "", "topics": ""}
 _lock = threading.RLock()
 
 
@@ -25,12 +22,12 @@ def digest(value):
 def profile():
     try:
         value = json.loads(PROFILE_PATH.read_text(encoding="utf-8"))
-        if not isinstance(value, dict) or not all(isinstance(value.get(k), str) and value[k].strip() for k in ("goal", "topics")):
+        if not isinstance(value, dict) or not isinstance(value.get("goal"), str) or not value["goal"].strip() or not isinstance(value.get("topics", ""), str):
             raise ValueError("Invalid profile")
-        result = {k: value[k] for k in ("goal", "topics")}
+        result = {k: value.get(k, "") for k in ("goal", "topics")}
     except (OSError, ValueError):
         result = dict(DEFAULT_PROFILE)
-    return {**result, "version": digest(result)}
+    return {**result, "version": digest(result), "configured": bool(result["goal"].strip())}
 
 
 def atomic_json(path, value):
@@ -43,9 +40,11 @@ def atomic_json(path, value):
 def save_profile(value):
     if not isinstance(value, dict):
         raise ValueError("研究方向格式无效")
-    result = {k: str(value.get(k, "")).strip() for k in ("goal", "topics")}
-    if not all(result.values()) or len(result["goal"]) > 3000 or len(result["topics"]) > 6000:
-        raise ValueError("请填写研究目标和关键词；目标不超过 3000 字，关键词不超过 6000 字")
+    if not all(isinstance(value.get(k, ""), str) for k in ("goal", "topics")):
+        raise ValueError("研究目标和关键词必须是文字")
+    result = {k: value.get(k, "").strip() for k in ("goal", "topics")}
+    if not result["goal"] or len(result["goal"]) > 3000 or len(result["topics"]) > 6000:
+        raise ValueError("请填写研究目标（不超过 3000 字）；关键词可选，不超过 6000 字")
     with _lock:
         atomic_json(PROFILE_PATH, result)
     return profile()

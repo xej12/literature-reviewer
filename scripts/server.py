@@ -31,6 +31,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import journal_metrics
 import reading_priority
+import research_suggestions
 import deep_reading
 import model_output
 import generation
@@ -1160,6 +1161,8 @@ PRIORITY_LOCK = threading.Lock()
 
 
 def generate_priority(item: dict[str, Any], analysis: dict[str, Any], research: dict[str, Any]) -> dict[str, Any]:
+    if not research.get("goal", "").strip():
+        raise ValueError("请先设置自己的研究目标，再评估阅读优先级")
     config = model_config()
     if not config["configured"]:
         raise RuntimeError("请先在模型设置中配置服务")
@@ -1614,6 +1617,27 @@ class Handler(BaseHTTPRequestHandler):
             except (RuntimeError, OSError) as exc:
                 self.send_json({"error": str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
             return
+        if path == "/api/research/suggest":
+            try:
+                if STORE is None:
+                    raise RuntimeError(STARTUP_ERROR)
+                if getattr(STORE, 'demo', False) is True:
+                    raise ValueError('示例模式不调用模型；请在自己的文献库中生成方向建议')
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 0 < length <= 4096:
+                    raise ValueError('方向建议请求大小无效')
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                papers = research_suggestions.selected_papers(STORE, payload)
+                self.send_json(research_suggestions.suggest(papers, model_config()))
+            except request_jobs.Cancelled:
+                raise
+            except FileNotFoundError as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.NOT_FOUND)
+            except (ValueError, TypeError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            except (RuntimeError, OSError) as exc:
+                self.send_json({"error": str(exc)}, HTTPStatus.FAILED_DEPENDENCY)
+            return
         if path == "/api/research":
             try:
                 length = int(self.headers.get("Content-Length", "0"))
@@ -1650,6 +1674,8 @@ class Handler(BaseHTTPRequestHandler):
                         self.send_json(reading_priority.priority_for(item, analysis, research))
                         return
                     elif payload.get("action") == "evaluate":
+                        if not research["goal"].strip():
+                            raise ValueError("请先设置自己的研究目标，再评估阅读优先级")
                         if saved["cached"] and not payload.get("force"):
                             self.send_json(saved)
                             return

@@ -76,6 +76,7 @@ class PriorityTests(unittest.TestCase):
             current.start()
             self.addCleanup(current.stop)
         self.item = {"key": "TEST", "title": "Adaptive optics and wavefront sensing", "abstract": "We test wavefront sensing with calibrated laboratory measurements."}
+        rp.save_profile({"goal": "研究自适应光学的实验方法", "topics": "自适应光学 | adaptive optics\n波前感知 | wavefront sensing"})
 
     def evaluation(self, relevance=55, content=27):
         return {"relevance": relevance, "contentValue": content, "reason": "Directly applicable measured method", "evidence": [self.item["abstract"]]}

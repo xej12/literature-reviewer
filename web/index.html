@@ -6,7 +6,7 @@
   <title>Literature Reviewer</title>
   <script src="/static/theme.js?v=theme-2"></script>
   <link rel="stylesheet" href="/static/vendor/pdfjs/web/pdf_viewer.css" />
-  <link rel="stylesheet" href="/static/styles.css?v=pagination-1" />
+  <link rel="stylesheet" href="/static/styles.css?v=research-1" />
   <link rel="stylesheet" href="/static/translation.css?v=selection-notes-4" />
   <link rel="stylesheet" href="/static/vendor/katex/katex.min.css" />
   <link rel="stylesheet" href="/static/notes.css?v=card-dialogue-1" />
@@ -184,9 +184,22 @@
   <div id="research-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="research-title">
     <div class="modal-card research-modal-card">
       <div class="modal-head"><h2 id="research-title">我的研究方向</h2><button id="close-research" class="close-button" aria-label="关闭研究方向设置">×</button></div>
-      <p class="modal-intro">优先级围绕你的研究目标判断。先确认方向，再评估文献；保存设置不会调用模型。</p>
-      <label class="setting-field"><span>研究目标</span><textarea id="research-goal" rows="4" maxlength="3000"></textarea></label>
-      <label class="setting-field"><span>关键词 · 每行一个主题，用 | 分隔中英文同义词</span><textarea id="research-topics" rows="7" maxlength="6000"></textarea></label>
+      <p class="modal-intro">阅读优先级围绕你确认的目标判断。可以直接填写，也可从所选论文获取建议。导入或切换文献不会自动更改目标。</p>
+      <details id="research-suggestion-tools" class="research-suggestion-tools">
+        <summary>根据所选文献建议研究方向</summary>
+        <p>选 1–5 篇代表性论文。仅在点击生成时，将标题和摘要发送至你配置的模型服务，不上传 PDF。每次生成消耗 Token；建议先预览，不会自动保存。</p>
+        <p id="research-selected-count"></p><ul id="research-selected" class="research-selected"></ul>
+        <label class="setting-field"><span>从文献库选择</span><input id="research-picker-query" type="search" placeholder="搜索标题或摘要" /></label>
+        <p id="research-picker-status" role="status"></p><div id="research-picker-list" class="research-picker-list"></div>
+        <div class="research-suggestion-actions"><button id="research-suggest" class="secondary-button">生成建议（消耗 Token）</button><button id="research-stop" class="text-button hidden">停止生成</button></div>
+        <p id="research-suggestion-status" role="status" aria-live="polite"></p>
+        <section id="research-preview" class="research-preview hidden" aria-label="研究方向建议预览">
+          <h3>建议预览 · 尚未保存</h3><h4>研究目标</h4><p id="research-preview-goal"></p><h4>关键词</h4><p id="research-preview-topics"></p><h4>建议依据与局限</h4><p id="research-preview-reason"></p>
+          <button id="research-adopt" class="secondary-button">采用到下方编辑框</button><small>采用后仍可修改，点击“保存研究方向”才生效。</small>
+        </section>
+      </details>
+      <label class="setting-field"><span>研究目标</span><textarea id="research-goal" rows="4" maxlength="3000" placeholder="填写你想解决的研究问题、方法或应用场景"></textarea></label>
+      <label class="setting-field"><span>关键词（可选）· 每行一个主题，用 | 分隔中英文同义词</span><textarea id="research-topics" rows="5" maxlength="6000" placeholder="根据自己的学科填写，关键词只提供相关性线索"></textarea></label>
       <p id="research-message" class="settings-message" role="status"></p>
       <div class="modal-actions"><button id="cancel-research" class="text-button">取消</button><button id="save-research" class="primary-button">保存研究方向</button></div>
     </div>
@@ -229,7 +242,8 @@
       <div id="analysis-modal-body" class="analysis-modal-body"></div>
     </div>
   </div>
-  <script src="/static/reading.js?v=wording-1"></script>
+  <script src="/static/reading.js?v=research-1"></script>
+  <script src="/static/research-suggestions.js?v=research-1"></script>
   <script src="/static/vendor/katex/katex.min.js"></script>
   <script src="/static/deep-reading.js?v=reading-views-1"></script>
   <script src="/static/app.js?v=reading-views-1"></script>

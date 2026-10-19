@@ -46,6 +46,7 @@ Poppler is installed inside `vendor/poppler/runtime/`; only the server process P
 - Selectable PDF text, a personal glossary and contextual translation.
 - Side-by-side figure explanations with optional region selection.
 - Local caches/history and reading priorities based primarily on your research goals and paper content.
+- No preset research discipline for new installs. Set your own goal, or explicitly select 1–5 papers to request an editable suggestion from their titles and abstracts. Model suggestions consume tokens, remain previews until adopted and saved, and never change your goal when browsing/importing papers. Existing saved goals and their cache versions are preserved.
 - Blank notes with optional paper links, autosave, revision conflict protection, Markdown/standalone HTML export and browser print-to-PDF. Reading cards separately store selections, user-initiated questions, conversations and editable summaries. Viewing/saving does not call a model; sending a card question or generating its summary does.
 - Optional CAS/JCR journal data import: `.\.venv\Scripts\python.exe scripts/import_journals.py`. This downloads a pinned third-party dataset; it is not live official data, and SJR is not used as a replacement for JCR.
 

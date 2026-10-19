@@ -52,7 +52,7 @@ function paperPriority(item) {
       <details class="priority-evidence"><summary>${p.evidence?.length ? "核对评估依据与阅读范围" : "查看已保存答复与阅读范围"}</summary><p>${escapeHtml(p.basis || "")}</p>${(p.evidence || []).map(q => `<blockquote>${escapeHtml(q)}</blockquote>`).join("")}
       ${p.evidenceVerification === "unverified" ? `<p>以下是模型给出的引文，尚未在原文核实，不作为评分依据：</p>${unverifiedQuotes(p).map(q => `<blockquote>${escapeHtml(q)}</blockquote>`).join("")}${p.proposedScores ? `<p>模型建议分（未采用）：相关性 ${escapeHtml(p.proposedScores.relevance)} / 60 · 内容价值 ${escapeHtml(p.proposedScores.contentValue)} / 30</p>` : ""}` : ""}
       <p>${escapeHtml(p.limitations || "")}</p><small>模型：${escapeHtml(p.model || "")} · ${escapeHtml(p.updatedAt || "")}</small></details>` : ""}
-    <div class="priority-actions"><button id="evaluate-priority" class="primary-button">${p.cached ? "重新评估" : "评估阅读优先级"}（消耗 Token）</button>${p.cached ? `<button id="reset-priority" class="text-button">清除当前等级</button>` : ""}<span>结果保存在本篇文献下，下次直接查看</span></div>
+    <div class="priority-actions"><button id="evaluate-priority" class="primary-button" ${research?.goal?.trim() ? "" : "disabled"}>${p.cached ? "重新评估" : "评估阅读优先级"}（消耗 Token）</button>${p.cached ? `<button id="reset-priority" class="text-button">清除当前等级</button>` : ""}<span>${research?.goal?.trim() ? "结果保存在本篇文献下，下次直接查看" : "请先设置自己的研究目标；也可免费手动设置等级"}</span></div>
     <details class="manual-priority"><summary>手动调整（不消耗 Token）</summary><div class="manual-fields"><label>阅读等级<select id="manual-tier">${readingTiers.map(t => `<option${t === p.tier ? " selected" : ""}>${t}</option>`).join("")}</select></label><label>我的理由<input id="manual-reason" placeholder="例如：与当前实验直接相关，本周精读" value="${p.method === "manual" ? escapeHtml(p.reason) : ""}" /></label><button id="save-manual-priority" class="secondary-button">保存等级</button></div></details>
     <p class="priority-footnote">夯 → 顶级 → 人上人 → NPC → 拉。等级仅表示对当前研究目标的阅读优先级；“夯”为优先精读，“拉”为当前低优先级。未评估文献单列。</p><p id="priority-message" class="priority-message" role="status"></p>`;
 }
@@ -94,26 +94,33 @@ async function updatePriority(item, options) {
     if (panel.isConnected) {
       $("#priority-message").textContent = error.message;
       panel.querySelectorAll("button").forEach(b => b.disabled = false);
+      $("#evaluate-priority").disabled = !(item.research || state.research)?.goal?.trim();
     }
   }
 }
 
+let researchOpenRequest = 0;
 async function openResearch() {
+  if (!$("#research-modal").classList.contains("hidden")) { $("#research-goal").focus(); return; }
+  const request = ++researchOpenRequest;
   try {
     const research = await getJson("/api/research");
+    if (request !== researchOpenRequest) return;
     $("#research-goal").value = research.goal;
     $("#research-topics").value = research.topics;
     $("#research-message").textContent = "更改研究方向后，旧评估会保留，但不会套用到新的研究目标。";
     $("#research-modal").classList.remove("hidden");
+    resetResearchSuggestion();
+    $("#research-suggestion-tools").open = !research.goal.trim();
     $("#research-goal").focus();
   } catch (error) { showError(error); }
 }
 
-function closeResearch() { $("#research-modal").classList.add("hidden"); }
+function closeResearch() { researchOpenRequest++; $("#research-modal").classList.add("hidden"); stopResearchSuggestion(); }
 
 function renderReadingContext(result) {
   state.research = result.research;
-  $("#research-summary").textContent = result.research?.goal || "请设置研究方向";
+  $("#research-summary").textContent = result.research?.goal || "尚未设置阅读目标 · 请设置自己的研究方向";
   const data = result.journalData;
   $("#journal-data-status").textContent = data?.ready ? `中科院 ${data.casYear} · JCR ${data.jcrYear} · ${data.source} · 期刊指标仅供参考` : "期刊数据未载入，仍可评估论文内容和手动设置阅读等级。";
   for (const kind of ["all", "available", "unavailable"]) $("#division-" + kind).textContent = result.divisionCounts?.[kind] ?? "—";
@@ -121,6 +128,7 @@ function renderReadingContext(result) {
 }
 
 function initReadingControls() {
+  initResearchSuggestion();
   $("#edit-research").onclick = openResearch;
   $("#close-research").onclick = closeResearch;
   $("#cancel-research").onclick = closeResearch;
